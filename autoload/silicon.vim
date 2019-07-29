@@ -4,36 +4,43 @@
 " Description: Create beautiful images of your source code.
 " Maintainer:  Klas Segeljakt <http://github.com/segeljakt>
 
-fun! s:cmd(path)
-  if empty(a:path) && empty(has('linux'))
-    echoerr 'Copying to clipboard with Silicon is currently'
-          \ 'only supported on Linux'
+fun! s:cmd(argc, argv)
+  let cmd = 'silicon '
+  if a:argc == 0
+    if empty(has('linux'))
+      echoerr 'Copying to clipboard with Silicon is only supported on Linux'
+    el
+      let cmd .= ' --to-clipboard'
+    en
+  el
+    let path = a:argv[0]
+    if empty(fnamemodify(path, ':e'))
+      let cmd .= ' --output '.path.'.png'
+    el
+      let cmd .= ' --output '.path
+    en
   en
-  let cmd = 'silicon '.shellescape(expand('%:p'))
-  let cmd .= empty(a:path) ?
-        \ ' --to-clipboard' :
-        \ ' --output '.a:path
   let cmd .= ' --language '.&ft
-  let cmd .= ' '.join(map(g:silicon, {key, val ->
-        \    type(val) == type(v:true) ? (
-        \      val == v:true ?
-        \        '--'.key :
+  let cmd .= ' '.join(values(map(copy(g:silicon), {key, val ->
+        \    type(val) == type(v:false) ? (
+        \      val == v:false ?
+        \        '--no-'.key :
         \        ''
         \      ) :
-        \      '--'.key.' '.val
-        \ }, ' '))
+        \      '--'.key.' '.string(val)
+        \ })), ' ')
   return cmd
 endfun
 
-fun! silicon#generate(line1, line2, path)
+fun! silicon#generate(line1, line2, ...)
   let lines = join(getline(a:line1, a:line2), "\n")
-  let cmd = s:cmd(a:path)
-  system('echo '.shellescape(lines).'|'.cmd)
+  let cmd = s:cmd(a:0, a:000)
+  call system('echo '.shellescape(lines).'|'.cmd)
 endfun
 
-fun! silicon#generate_highlighted(line1, line2, path)
+fun! silicon#generate_highlighted(line1, line2, ...)
   let lines = join(getline('1', '$'), "\n")
-  let cmd = s:cmd(a:path)
-  let cmd .= ' --highlight-lines '.a:line1.'-'.a:line2
-  system('echo '.shellescape(lines).'|'.cmd)
+  let cmd = s:cmd(a:0, a:000)
+  let cmd .= ' --highlight-lines '.a:line1.'-'.(a:line2+1)
+  call system('echo '.shellescape(lines).'|'.cmd)
 endfun

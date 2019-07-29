@@ -13,12 +13,12 @@ en
 " Helpers
 
 fun! s:conf(name, dict)
-  if empty(exists(name))
-    let {name} = a:dict
+  if empty(exists(a:name))
+    let {a:name} = a:dict
   el
     for [key, val] in items(a:dict)
-      if empty(has_key({name}, key))
-        let {name}[key] = val
+      if empty(has_key({a:name}, key))
+        let {a:name}[key] = val
       en
     endfor
   en
@@ -37,9 +37,9 @@ call s:conf('g:silicon', {
 \   'shadow-blur-radius':           0,
 \   'shadow-offset-x':              0,
 \   'shadow-offset-y':              0,
-\   'no-line-number':         v:false,
-\   'no-round-corner':        v:false,
-\   'no-window-controls':     v:false,
+\   'line-number':             v:true,
+\   'round-corner':            v:true,
+\   'window-controls':         v:true,
 \ })
 
 com!
