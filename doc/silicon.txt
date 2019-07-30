@@ -26,9 +26,12 @@ to install silicon, which is most easily done using cargo:
 >
     # Install cargo
     curl https://sh.rustup.rs -sSf | sh
-    
+
     # Install silicon
     cargo install silicon
+
+    # Add cargo-installed binaries to the path
+    export PATH="$PATH:$CARGO_HOME/bin"
 >
 
 ==============================================================================

@@ -17,6 +17,9 @@ curl https://sh.rustup.rs -sSf | sh
 
 # Install silicon
 cargo install silicon
+
+# Add cargo-installed binaries to the path
+export PATH="$PATH:$CARGO_HOME/bin"
 ```
 
 Then, if using [vim-plug](https://github.com/junegunn/vim-plug), add this to your `~/.vimrc`:
