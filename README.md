@@ -1,11 +1,10 @@
 <h1 align="center">vim-silicon</h1>
 
 <p align="center">
-  <img width="600px" src="http://storage.aloxaf.cn/silicon.png?v=2">
+  <img width="800px" src="https://github.com/segeljakt/assets/blob/master/Silicon.gif?raw=true">
 </p>
 
 This plugin provides a command which, given a visual selection or buffer, will generate a neat looking and highly customizable image of the source code. The image generator is https://github.com/Aloxaf/silicon, which is similar to https://carbon.now.sh, but does not require an internet connection.
-
 
 # Installation
 
