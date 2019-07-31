@@ -12,7 +12,7 @@ en
 
 " Plugin-independent Helpers
 
-" Mapping from type(x) to 'x'
+" Mapping from type-number to type-name
 let s:typename = {
       \ 0: 'number',
       \ 1: 'string',

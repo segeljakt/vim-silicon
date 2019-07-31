@@ -87,9 +87,9 @@ Default: ~
           \ 'shadow-blur-radius':         0,
           \ 'shadow-offset-x':            0,
           \ 'shadow-offset-y':            0,
-          \ 'no-line-number':       v:false,
-          \ 'no-round-corner':      v:false,
-          \ 'no-window-controls':   v:false,
+          \ 'line-number':           v:true,
+          \ 'round-corner':          v:true,
+          \ 'window-controls':       v:true,
           \ }
 >
 
