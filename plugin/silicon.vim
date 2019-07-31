@@ -21,3 +21,4 @@ com!
   \ -nargs=?
   \ -complete=dir
   \ SiliconHighlight call silicon#generate_highlighted(<line1>, <line2>, <f-args>)
+

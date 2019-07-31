@@ -10,8 +10,9 @@ el
   let s:autoloaded = v:true
 en
 
-" Configure
+" Plugin-independent Helpers
 
+" Mapping from type(x) to 'x'
 let s:typename = {
       \ 0: 'number',
       \ 1: 'string',
@@ -23,84 +24,96 @@ let s:typename = {
       \ 7: 'null',
       \ }
 
-fun! s:check(config, default)
+" Check for unexpected keys and type mismatches in a:config, using a:default
+" as reference. If any are found, an exception is thrown.
+fun! s:validate(config, default)
   let errors = []
   for [key, val] in items(a:config)
-    if has_key(a:default, key)
-      let found = type(val)
-      let expected = type(a:default[key])
-      if found != expected
-        let errors += ['Type mismatch for key '.string(key)
-              \ .', found '.string(s:typename[found])
-              \ .', expected '.string(s:typename[expected])]
-      en
-    el
+    if !has_key(a:default, key)
       let errors += ['Unexpected key '.string(key)]
+    el
+      let default_val = a:default[key]
+      let found = type(val)
+      let expected = type(default_val)
+      if found != expected
+        let errors += [
+              \ 'Type mismatch in key '.string(key)
+              \ .', found '.string(s:typename[found])
+              \ .', expected '.string(s:typename[expected])
+              \ .', e.g. '.string(default_val)
+              \ ]
+      en
     en
   endfor
-  return errors
+  if !empty(errors)
+    throw join(errors, "\n  - ")
+  en
 endfun
 
+" Creates/derives a configuration based on a default configuration
 fun! s:configure(name, default)
-  if empty(exists(a:name))
+  if !exists(a:name)
     let {a:name} = a:default
   el
     let config = {a:name}
-    let errors = s:check(config, a:default)
-    if !empty(errors)
-      echohl ErrorMsg
-      echo "[Silicon Error]: \n  - ".join(errors, "\n  - ")
-      echo "\n... Rolling back to default config."
-      echohl None
-      let {a:name} = a:default
-    el
-      " Defaults
-      for [key, val] in items(a:default)
-        if empty(has_key(config, key))
-          let config[key] = val
-        en
-      endfor
-    en
+    for [key, val] in items(a:default)
+      if !has_key(config, key)
+        let config[key] = val
+      en
+    endfor
   en
 endfun
 
-" Defaults
+" Default configuration
+let s:default = {
+      \   'theme':                'Dracula',
+      \   'font':                    'Hack',
+      \   'background':           '#aaaaff',
+      \   'shadow-color':         '#555555',
+      \   'line-pad':                     2,
+      \   'pad-horiz':                   80,
+      \   'pad-vert':                   100,
+      \   'shadow-blur-radius':           0,
+      \   'shadow-offset-x':              0,
+      \   'shadow-offset-y':              0,
+      \   'line-number':             v:true,
+      \   'round-corner':            v:true,
+      \   'window-controls':         v:true,
+      \ }
 
-call s:configure('g:silicon', {
-\   'theme':                'Dracula',
-\   'font':                    'Hack',
-\   'background':           '#aaaaff',
-\   'shadow-color':         '#555555',
-\   'line-pad':                     2,
-\   'pad-horiz':                   80,
-\   'pad-vert':                   100,
-\   'shadow-blur-radius':           0,
-\   'shadow-offset-x':              0,
-\   'shadow-offset-y':              0,
-\   'line-number':             v:true,
-\   'round-corner':            v:true,
-\   'window-controls':         v:true,
-\ })
+call s:configure('g:silicon', s:default)
 
-" Logic
-
+" Silicon bindings
 fun! s:cmd(argc, argv)
   let cmd = ['silicon']
+  " Output method
   if a:argc == 0
-    if empty(has('linux'))
-      echoerr 'Copying to clipboard with Silicon is only supported on Linux'
-    el
+    if has('linux')
       let cmd += ['--to-clipboard']
+    el
+      throw 'Copying to clipboard is only supported on Linux.'
+            \ 'Please specify a path instead.'
     en
   el
     let path = a:argv[0]
-    if empty(fnamemodify(path, ':e'))
-      let cmd += ['--output', path.'.png']
-    el
+    if !empty(fnamemodify(path, ':e'))
       let cmd += ['--output', path]
+    el
+      let cmd += ['--output', path.'.png']
     en
   en
-  let cmd += ['--language', &ft]
+  " Language
+  if !empty(&ft)
+    let cmd += ['--language', &ft]
+  el
+    let ext = expand('%:e')
+    if !empty(ext)
+      let cmd += ['--language', ext]
+    el
+      let cmd += ['--language', 'txt']
+    en
+  en
+  " Configuration
   for [key, val] in items(g:silicon)
     if type(val) == type(v:false)
       if val == v:false
@@ -127,15 +140,35 @@ el
   endfun
 en
 
+" Exposed API
 fun! silicon#generate(line1, line2, ...)
-  let lines = join(getline(a:line1, a:line2), "\n")
-  let cmd = s:cmd(a:0, a:000)
-  call s:dispatch(cmd, lines)
+  try
+    if mode() != 'n' && visualmode() != 'V'
+      throw 'Command can only be called from Normal or Visual Line mode.'
+    en
+    call s:validate(g:silicon, s:default)
+    let cmd = s:cmd(a:0, a:000)
+    let lines = join(getline(a:line1, a:line2), "\n")
+    call s:dispatch(cmd, lines)
+    echo '[Silicon - Success]: Image Generated'
+  catch
+    echohl ErrorMsg | echo "[Silicon - Error]:\n  - ".v:exception | echohl None
+  endtry
 endfun
 
 fun! silicon#generate_highlighted(line1, line2, ...)
-  let lines = join(getline('1', '$'), "\n")
-  let cmd = s:cmd(a:0, a:000)
-  let cmd += ['--highlight-lines', a:line1.'-'.(a:line2+1)]
-  call s:dispatch(cmd, lines)
+  try
+    if visualmode() != 'V'
+      throw 'Command can only be called from Visual Line mode.'
+    en
+    call s:validate(g:silicon, s:default)
+    let cmd = s:cmd(a:0, a:000)
+    let cmd += ['--highlight-lines', a:line1.'-'.(a:line2+1)]
+    let lines = join(getline('1', '$'), "\n")
+    call s:dispatch(cmd, lines)
+    echo '[Silicon - Success]: Highlighted Image Generated'
+  catch
+    echohl ErrorMsg | echo "[Silicon - Error]:\n  - ".v:exception | echohl None
+  endtry
 endfun
+
