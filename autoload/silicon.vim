@@ -29,8 +29,8 @@ let s:typename = {
 " an exception is thrown.
 fun! s:validate(config, default)
   if empty(executable('silicon'))
-    throw 'vim-silicon requires `silicon` to be installed.'
-          \ 'Please refer to the installation instructions in the README.md.'
+    throw 'vim-silicon requires `silicon` to be installed. '
+          \ .'Please refer to the installation instructions in the README.md.'
   en
   let errors = []
   for [key, val] in items(a:config)
@@ -93,11 +93,11 @@ fun! s:cmd(argc, argv)
   let cmd = ['silicon']
   " Output method
   if a:argc == 0
-    if has('linux')
-      let cmd += ['--to-clipboard']
+    if empty(executable('xclip'))
+      throw 'Copying to clipboard is only supported on Linux with xclip installed. '
+            \ .'Please specify a path instead.'
     el
-      throw 'Copying to clipboard is only supported on Linux.'
-            \ 'Please specify a path instead.'
+      let cmd += ['--to-clipboard']
     en
   el
     let path = a:argv[0]
