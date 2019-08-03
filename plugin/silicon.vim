@@ -4,12 +4,6 @@
 " Description: Create beautiful images of your source code.
 " Maintainer:  Klas Segeljakt <http://github.com/segeljakt>
 
-if empty(executable('silicon'))
-  echoerr 'vim-silicon requires `silicon` to be installed.'
-        \ 'Please refer to the installation instructions in the README.md.'
-  finish
-en
-
 com!
   \ -range=%
   \ -nargs=?

@@ -24,9 +24,14 @@ let s:typename = {
       \ 7: 'null',
       \ }
 
-" Check for unexpected keys and type mismatches in a:config, using a:default
-" as reference. If any are found, an exception is thrown.
+" First, check that silicon is installed. Then, check for unexpected keys and
+" type mismatches in a:config, using a:default as reference. If any are found,
+" an exception is thrown.
 fun! s:validate(config, default)
+  if empty(executable('silicon'))
+    throw 'vim-silicon requires `silicon` to be installed.'
+          \ 'Please refer to the installation instructions in the README.md.'
+  en
   let errors = []
   for [key, val] in items(a:config)
     if !has_key(a:default, key)
