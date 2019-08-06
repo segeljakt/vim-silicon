@@ -168,7 +168,7 @@ fun! silicon#generate_highlighted(line1, line2, ...)
     en
     call s:validate(g:silicon, s:default)
     let cmd = s:cmd(a:0, a:000)
-    let cmd += ['--highlight-lines', a:line1.'-'.(a:line2+1)]
+    let cmd += ['--highlight-lines', a:line1.'-'.a:line2]
     let lines = join(getline('1', '$'), "\n")
     call s:dispatch(cmd, lines)
     echo '[Silicon - Success]: Highlighted Image Generated'
