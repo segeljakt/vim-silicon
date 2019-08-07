@@ -102,7 +102,7 @@ fun! s:cmd(argc, argv)
   el
     let path = expand(a:argv[0])
     if isdirectory(path)                                  " /path/to/
-      let filename = expand('%:r')
+      let filename = expand('%:t:r')
       if !empty(filename)                                 " Named source
         let cmd += ['--output', path.'/'.filename.'.png']
       el                                                  " Unnamed source
