@@ -35,6 +35,9 @@ The available commands are `Silicon`, and `SiliconHighlight`:
 " Generate an image of the current buffer and write it to /path/to/output.png
 :Silicon /path/to/output.png
 
+" Generate an image of the current buffer and write it to /path/to/<filename>.png
+:Silicon /path/to/
+
 " Generate an image of the current visual line selection and write it to /path/to/output.png
 :'<,'>Silicon /path/to/output.png
 
