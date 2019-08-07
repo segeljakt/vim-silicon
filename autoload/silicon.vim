@@ -100,11 +100,19 @@ fun! s:cmd(argc, argv)
       let cmd += ['--to-clipboard']
     en
   el
-    let path = a:argv[0]
-    if !empty(fnamemodify(path, ':e'))
-      let cmd += ['--output', path]
-    el
+    let path = expand(a:argv[0])
+    if isdirectory(path)                                  " /path/to/
+      let filename = expand('%:r')
+      if !empty(filename)                                 " Named source
+        let cmd += ['--output', path.'/'.filename.'.png']
+      el                                                  " Unnamed source
+        let date = strftime('%Y-%m-%d_%H-%M-%S')
+        let cmd += ['--output', path.'/silicon_'.date.'.png']
+      en
+    elseif empty(fnamemodify(path, ':e'))                 " /path/to/img
       let cmd += ['--output', path.'.png']
+    el                                                    " /path/to/img.png
+      let cmd += ['--output', path]
     en
   en
   " Language
