@@ -88,12 +88,31 @@ let s:default = {
 
 call s:configure('g:silicon', s:default)
 
+if !exists('g:silicon_default_file_pattern')
+  " Examples:
+  "   ~/images/silicon-{time:%Y-%m-%d-%H%M%S}.png
+  "   ~/images/silicon-{time:%s}.png
+  "
+  let g:silicon_default_file_pattern = ''
+endif
+
 " Silicon bindings
 fun! s:cmd(argc, argv)
   let cmd = ['silicon']
   " Output method
   if a:argc == 0
-    if empty(executable('xclip'))
+    if len(g:silicon_default_file_pattern) > 0
+      let path = g:silicon_default_file_pattern
+      let path = substitute(g:silicon_default_file_pattern,
+            \ '{time:\(.\{-}\)}', {match -> strftime(match[1])}, 'g')
+      let path = fnamemodify(path, ':p')
+
+      if !empty(fnamemodify(path, ':e'))
+        let cmd += ['--output', path]
+      el
+        let cmd += ['--output', path.'.png']
+      en
+    elseif empty(executable('xclip'))
       throw 'Copying to clipboard is only supported on Linux with xclip installed. '
             \ .'Please specify a path instead.'
     el
