@@ -12,6 +12,20 @@ en
 
 " Plugin-independent Helpers
 
+" Return the OS name
+fun! s:os()
+  if !exists('s:os')
+    if has('win64') || has('win32') || has('win16')
+      let s:os = 'Windows'
+    elseif has('mac') || has('macunix') || has('gui_mac')
+      let s:os = 'Darwin'
+    el
+      let s:os = substitute(system('uname'), '\n', '', '')
+    en
+  en
+  return s:os
+endfun
+
 " Mapping from type-number to type-name
 let s:typename = {
       \ 0: 'number',
@@ -93,11 +107,11 @@ fun! s:cmd(argc, argv)
   let cmd = ['silicon']
   " Output method
   if a:argc == 0
-    if empty(executable('xclip'))
-      throw 'Copying to clipboard is only supported on Linux with xclip installed. '
-            \ .'Please specify a path instead.'
-    el
+    if !empty(executable('xclip')) || s:os() ==# 'Darwin'
       let cmd += ['--to-clipboard']
+    el
+      throw 'Copying to clipboard is only supported on macOS and Linux with xclip installed. '
+            \ .'Please specify a path instead.'
     en
   el
     let path = expand(a:argv[0])

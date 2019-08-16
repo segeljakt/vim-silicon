@@ -104,7 +104,7 @@ For more details about options, please see https://github.com/Aloxaf/silicon.
 ==============================================================================
 NOTES                                                      *vim-silicon-notes*
 
-Currently, `silicon` only supports copying to clipboard on Linux.
+Currently, `silicon` only supports copying to clipboard on macOS and Linux.
 
 ==============================================================================
 " vim:tw=78:ts=4:sts=4:sw=4:ft=help:norl:

@@ -45,7 +45,7 @@ The available commands are `Silicon`, and `SiliconHighlight`:
 :'<,'>SiliconHighlight /path/to/output.png
 ```
 
-If no `/path/to/output.png` is specified, then the generated image is copied to clipboard. However, this feature is only supported on Linux at the moment.
+If no `/path/to/output.png` is specified, then the generated image is copied to clipboard. However, this feature is only supported on macOS and Linux at the moment.
 
 # Options
 
