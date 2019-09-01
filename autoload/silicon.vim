@@ -13,16 +13,16 @@ en
 " Plugin-independent Helpers
 
 " Mapping from type-number to type-name
-let s:typename = {
-      \ 0: 'number',
-      \ 1: 'string',
-      \ 2: 'func',
-      \ 3: 'list',
-      \ 4: 'dict',
-      \ 5: 'float',
-      \ 6: 'boolean',
-      \ 7: 'null',
-      \ }
+let s:typename = [
+      \ 'number',
+      \ 'string',
+      \ 'func',
+      \ 'list',
+      \ 'dict',
+      \ 'float',
+      \ 'boolean',
+      \ 'null',
+      \ ]
 
 " First, check that silicon is installed. Then, check for unexpected keys and
 " type mismatches in a:config, using a:default as reference. If any are found,
