@@ -85,7 +85,7 @@ let s:default_cmd = {
 
 let s:default_vim = { }
 
-let s:default = extend(s:default_vim, s:default_cmd)
+let s:default = extend(copy(s:default_cmd), s:default_vim)
 
 call s:configure('g:silicon', s:default)
 
@@ -146,11 +146,10 @@ endfun
 
 " Silicon bindings
 fun! s:cmd(argc, argv)
-  let cmd = ['silicon']
+  return ['silicon']
         \ + s:cmd_output(a:argc, a:argv)
         \ + s:cmd_language(a:argc, a:argv)
         \ + s:cmd_config(a:argc, a:argv)
-  return cmd
 endfun
 
 if has('nvim')
