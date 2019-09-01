@@ -66,6 +66,7 @@ let g:silicon = {
       \ 'line-number':           v:true,
       \ 'round-corner':          v:true,
       \ 'window-controls':       v:true,
+      \ 'default-file-pattern'       '',
       \ }
 ```
 
