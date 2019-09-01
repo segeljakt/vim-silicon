@@ -20,6 +20,21 @@ let s:typename = [
       \ 'null',
       \ ]
 
+" Job-dispatch
+if has('nvim')
+  fun! s:dispatch(cmd, lines)
+    let id = jobstart(a:cmd)
+    call chansend(id, a:lines)
+    call chanclose(id)
+  endfun
+el
+  fun! s:dispatch(cmd, lines)
+    let id = job_start(a:cmd)
+    call ch_sendraw(id, a:lines)
+    call ch_close(id)
+  endfun
+en
+
 " First, check that silicon is installed. Then, check for unexpected keys and
 " type mismatches in a:config, using a:default as reference. If any are found,
 " an exception is thrown.
@@ -83,35 +98,63 @@ let s:default_cmd = {
       \   'window-controls':         v:true,
       \ }
 
-let s:default_vim = { }
+let s:default_vim = {
+      \   'default-file-pattern':        '',
+      \ }
 
 let s:default = extend(copy(s:default_cmd), s:default_vim)
 
 call s:configure('g:silicon', s:default)
 
+" Silicon bindings
+fun! s:cmd(argc, argv)
+  return ['silicon']
+        \ + s:cmd_output(a:argc, a:argv)
+        \ + s:cmd_language(a:argc, a:argv)
+        \ + s:cmd_config(a:argc, a:argv)
+endfun
+
 fun! s:cmd_output(argc, argv)
-  if a:argc == 0
-    if empty(executable('xclip'))
-      throw 'Copying to clipboard is only supported on Linux with xclip installed. '
-            \ .'Please specify a path instead.'
-    el
-      return ['--to-clipboard']
+  if a:argc > 0
+    return ['--output', s:cmd_output_path(a:argc, a:argv)]
+  elseif !empty(g:silicon['default-file-pattern'])
+    return ['--output', s:cmd_output_pattern(a:argc, a:argv)]
+  elseif !empty(executable('xclip'))
+    return ['--to-clipboard']
+  el
+    throw 'Copying to clipboard is only supported on Linux with xclip installed. '
+          \ .'Please specify a path instead.'
+  en
+endfun
+
+fun! s:set_extension(path)
+  if !empty(fnamemodify(a:path, ':e'))
+    return a:path
+  el
+    return a:path.'.png'
+  en
+endfun
+
+fun! s:cmd_output_pattern(argc, argv)
+  let path = g:silicon['default-file-pattern']
+  let path = substitute(path, '{time:\(.\{-}\)}', {match -> strftime(match[1])}, 'g')
+  let path = substitute(path, '{file:\(.\{-}\)}', {match -> expand(match[1])}, 'g')
+  let path = fnamemodify(path, ':p')
+  return s:set_extension(path)
+endfun
+
+fun! s:cmd_output_path(argc, argv)
+  let path = expand(a:argv[0])
+  if isdirectory(path)                         " /path/to/
+    let filename = expand('%:t:r')
+    if !empty(filename)                        " Named source file
+      return path.'/'.filename.'.png'
+    el                                         " Unnamed source file
+      let date = strftime('%Y-%m-%d_%H-%M-%S')
+      return path.'/silicon_'.date.'.png'
     en
   el
-    let path = expand(a:argv[0])
-    if isdirectory(path)                                  " /path/to/
-      let filename = expand('%:t:r')
-      if !empty(filename)                                 " Named source
-        return ['--output', path.'/'.filename.'.png']
-      el                                                  " Unnamed source
-        let date = strftime('%Y-%m-%d_%H-%M-%S')
-        return ['--output', path.'/silicon_'.date.'.png']
-      en
-    elseif empty(fnamemodify(path, ':e'))                 " /path/to/img
-      return ['--output', path.'.png']
-    el                                                    " /path/to/img.png
-      return ['--output', path]
-    en
+    return s:set_extension(path)               " /path/to/img.png
   en
 endfun
 
@@ -143,28 +186,6 @@ fun! s:cmd_config(argc, argv)
   endfor
   return flags
 endfun
-
-" Silicon bindings
-fun! s:cmd(argc, argv)
-  return ['silicon']
-        \ + s:cmd_output(a:argc, a:argv)
-        \ + s:cmd_language(a:argc, a:argv)
-        \ + s:cmd_config(a:argc, a:argv)
-endfun
-
-if has('nvim')
-  fun! s:dispatch(cmd, lines)
-    let id = jobstart(a:cmd)
-    call chansend(id, a:lines)
-    call chanclose(id)
-  endfun
-el
-  fun! s:dispatch(cmd, lines)
-    let id = job_start(a:cmd)
-    call ch_sendraw(id, a:lines)
-    call ch_close(id)
-  endfun
-en
 
 " Exposed API
 fun! silicon#generate(line1, line2, ...)
