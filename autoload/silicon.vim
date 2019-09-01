@@ -4,11 +4,7 @@
 " Description: Create beautiful images of your source code.
 " Maintainer:  Klas Segeljakt <http://github.com/segeljakt>
 
-if exists('s:autoloaded')
-  finish
-el
-  let s:autoloaded = v:true
-en
+if exists('s:autoloaded') | finish | el | let s:autoloaded = v:true | en
 
 " Plugin-independent Helpers
 
@@ -51,7 +47,8 @@ fun! s:validate(config, default)
     en
   endfor
   if !empty(errors)
-    throw join(errors, "\n  - ")
+    let sep = "\n  - "
+    throw sep + join(errors, sep)
   en
 endfun
 
@@ -70,7 +67,7 @@ fun! s:configure(name, default)
 endfun
 
 " Default configuration
-let s:default = {
+let s:default_cmd = {
       \   'theme':                'Dracula',
       \   'font':                    'Hack',
       \   'background':           '#aaaaff',
@@ -86,56 +83,73 @@ let s:default = {
       \   'window-controls':         v:true,
       \ }
 
+let s:default_vim = { }
+
+let s:default = extend(s:default_vim, s:default_cmd)
+
 call s:configure('g:silicon', s:default)
 
-" Silicon bindings
-fun! s:cmd(argc, argv)
-  let cmd = ['silicon']
-  " Output method
+fun! s:cmd_output(argc, argv)
   if a:argc == 0
     if empty(executable('xclip'))
       throw 'Copying to clipboard is only supported on Linux with xclip installed. '
             \ .'Please specify a path instead.'
     el
-      let cmd += ['--to-clipboard']
+      return ['--to-clipboard']
     en
   el
     let path = expand(a:argv[0])
     if isdirectory(path)                                  " /path/to/
       let filename = expand('%:t:r')
       if !empty(filename)                                 " Named source
-        let cmd += ['--output', path.'/'.filename.'.png']
+        return ['--output', path.'/'.filename.'.png']
       el                                                  " Unnamed source
         let date = strftime('%Y-%m-%d_%H-%M-%S')
-        let cmd += ['--output', path.'/silicon_'.date.'.png']
+        return ['--output', path.'/silicon_'.date.'.png']
       en
     elseif empty(fnamemodify(path, ':e'))                 " /path/to/img
-      let cmd += ['--output', path.'.png']
+      return ['--output', path.'.png']
     el                                                    " /path/to/img.png
-      let cmd += ['--output', path]
+      return ['--output', path]
     en
   en
-  " Language
+endfun
+
+fun! s:cmd_language(argc, argv)
   if !empty(&ft)
-    let cmd += ['--language', &ft]
+    return ['--language', &ft]
   el
     let ext = expand('%:e')
     if !empty(ext)
-      let cmd += ['--language', ext]
+      return ['--language', ext]
     el
-      let cmd += ['--language', 'txt']
+      return ['--language', 'txt']
     en
   en
-  " Configuration
+endfun
+
+fun! s:cmd_config(argc, argv)
+  let flags = []
   for [key, val] in items(g:silicon)
-    if type(val) == type(v:false)
-      if val == v:false
-        let cmd += ['--no-'.key]
+    if has_key(s:default_cmd, key)
+      if type(val) == type(v:false)
+        if val == v:false
+          let flags += ['--no-'.key]
+        en
+      el
+        let flags += ['--'.key, val]
       en
-    el
-      let cmd += ['--'.key, val]
     en
   endfor
+  return flags
+endfun
+
+" Silicon bindings
+fun! s:cmd(argc, argv)
+  let cmd = ['silicon']
+        \ + s:cmd_output(a:argc, a:argv)
+        \ + s:cmd_language(a:argc, a:argv)
+        \ + s:cmd_config(a:argc, a:argv)
   return cmd
 endfun
 
@@ -165,7 +179,8 @@ fun! silicon#generate(line1, line2, ...)
     call s:dispatch(cmd, lines)
     echo '[Silicon - Success]: Image Generated'
   catch
-    echohl ErrorMsg | echo "[Silicon - Error]:\n  - ".v:exception | echohl None
+    let v:errmsg = '[Silicon - Error]: '.v:exception
+    echohl ErrorMsg | echo v:errmsg | echohl None
   endtry
 endfun
 
@@ -176,12 +191,13 @@ fun! silicon#generate_highlighted(line1, line2, ...)
     en
     call s:validate(g:silicon, s:default)
     let cmd = s:cmd(a:0, a:000)
-    let cmd += ['--highlight-lines', a:line1.'-'.a:line2]
+          \ + ['--highlight-lines', a:line1.'-'.a:line2]
     let lines = join(getline('1', '$'), "\n")
     call s:dispatch(cmd, lines)
     echo '[Silicon - Success]: Highlighted Image Generated'
   catch
-    echohl ErrorMsg | echo "[Silicon - Error]:\n  - ".v:exception | echohl None
+    let v:errmsg = '[Silicon - Error]: '.v:exception
+    echohl ErrorMsg | echo v:errmsg | echohl None
   endtry
 endfun
 
