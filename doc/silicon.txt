@@ -48,7 +48,8 @@ Generate a code image from a buffer or visual line selection.
 Examples:
 
 >
-    " Generate an image of the current buffer and write it to clipboard
+    " Generate an image of the current buffer and write it to the clipboard,
+    " or to a default file path
     :Silicon
 
     " Generate an image of the current buffer
@@ -69,7 +70,8 @@ visual line selection highlighted.
 ==============================================================================
 OPTIONS                                                  *vim-silicon-options*
 
-    g:silicon .................................................... |g:silicon|
+    g:silicon ............................... |g:silicon|
+    g:silicon['default-file-name'] .......... |g:silicon['default-file-name']|
 
 ------------------------------------------------------------------------------
                                                                    *g:silicon*
@@ -90,6 +92,7 @@ Default: ~
           \ 'line-number':           v:true,
           \ 'round-corner':          v:true,
           \ 'window-controls':       v:true,
+          \ 'default-file-pattern'       '',
           \ }
 >
 
@@ -100,6 +103,28 @@ To get the list of available themes, you can run this in the terminal:
 >
 
 For more details about options, please see https://github.com/Aloxaf/silicon.
+
+------------------------------------------------------------------------------
+                                           *g:silicon['default-file-pattern']*
+
+If set to a non-empty string, it'll be used as the default filename when
+|:Silicon| is called with no arguments. Note that this means you could no
+longer copy to clipboard, unless you manually reset it to an empty string.
+
+It's possible to embed a timestamp into the filename by using the
+`{time:<strftime() specifier>}` format. As an example:
+
+>
+    let g:silicon['default-file-pattern'] =
+            \ '~/images/silicon-{time:%Y-%m-%d-%H%M%S}.png'
+>
+
+This might result in the file: `~/images/silicon-2019-08-10-164233.png`.
+
+Similarly, `{file:<expand() specifier>}` can be used to embed filename
+information.
+
+See |strftime()| and |expand()| for more information.
 
 ==============================================================================
 NOTES                                                      *vim-silicon-notes*

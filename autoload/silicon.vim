@@ -4,25 +4,36 @@
 " Description: Create beautiful images of your source code.
 " Maintainer:  Klas Segeljakt <http://github.com/segeljakt>
 
-if exists('s:autoloaded')
-  finish
-el
-  let s:autoloaded = v:true
-en
+if exists('s:autoloaded') | finish | el | let s:autoloaded = v:true | en
 
 " Plugin-independent Helpers
 
 " Mapping from type-number to type-name
-let s:typename = {
-      \ 0: 'number',
-      \ 1: 'string',
-      \ 2: 'func',
-      \ 3: 'list',
-      \ 4: 'dict',
-      \ 5: 'float',
-      \ 6: 'boolean',
-      \ 7: 'null',
-      \ }
+let s:typename = [
+      \ 'number',
+      \ 'string',
+      \ 'func',
+      \ 'list',
+      \ 'dict',
+      \ 'float',
+      \ 'boolean',
+      \ 'null',
+      \ ]
+
+" Job-dispatch
+if has('nvim')
+  fun! s:dispatch(cmd, lines)
+    let id = jobstart(a:cmd)
+    call chansend(id, a:lines)
+    call chanclose(id)
+  endfun
+el
+  fun! s:dispatch(cmd, lines)
+    let id = job_start(a:cmd)
+    call ch_sendraw(id, a:lines)
+    call ch_close(id)
+  endfun
+en
 
 " First, check that silicon is installed. Then, check for unexpected keys and
 " type mismatches in a:config, using a:default as reference. If any are found,
@@ -51,7 +62,8 @@ fun! s:validate(config, default)
     en
   endfor
   if !empty(errors)
-    throw join(errors, "\n  - ")
+    let sep = "\n  - "
+    throw sep + join(errors, sep)
   en
 endfun
 
@@ -70,7 +82,7 @@ fun! s:configure(name, default)
 endfun
 
 " Default configuration
-let s:default = {
+let s:default_cmd = {
       \   'theme':                'Dracula',
       \   'font':                    'Hack',
       \   'background':           '#aaaaff',
@@ -86,72 +98,94 @@ let s:default = {
       \   'window-controls':         v:true,
       \ }
 
+let s:default_vim = {
+      \   'default-file-pattern':        '',
+      \ }
+
+let s:default = extend(copy(s:default_cmd), s:default_vim)
+
 call s:configure('g:silicon', s:default)
 
 " Silicon bindings
 fun! s:cmd(argc, argv)
-  let cmd = ['silicon']
-  " Output method
-  if a:argc == 0
-    if empty(executable('xclip'))
-      throw 'Copying to clipboard is only supported on Linux with xclip installed. '
-            \ .'Please specify a path instead.'
-    el
-      let cmd += ['--to-clipboard']
+  return ['silicon']
+        \ + s:cmd_output(a:argc, a:argv)
+        \ + s:cmd_language(a:argc, a:argv)
+        \ + s:cmd_config(a:argc, a:argv)
+endfun
+
+fun! s:cmd_output(argc, argv)
+  if a:argc > 0
+    return ['--output', s:cmd_output_path(a:argc, a:argv)]
+  elseif !empty(g:silicon['default-file-pattern'])
+    return ['--output', s:cmd_output_pattern(a:argc, a:argv)]
+  elseif !empty(executable('xclip'))
+    return ['--to-clipboard']
+  el
+    throw 'Copying to clipboard is only supported on Linux with xclip installed. '
+          \ .'Please specify a path instead.'
+  en
+endfun
+
+fun! s:set_extension(path)
+  if !empty(fnamemodify(a:path, ':e'))
+    return a:path
+  el
+    return a:path.'.png'
+  en
+endfun
+
+fun! s:cmd_output_pattern(argc, argv)
+  let path = g:silicon['default-file-pattern']
+  let path = substitute(path, '{time:\(.\{-}\)}', {match -> strftime(match[1])}, 'g')
+  let path = substitute(path, '{file:\(.\{-}\)}', {match -> expand(match[1])}, 'g')
+  let path = fnamemodify(path, ':p')
+  return s:set_extension(path)
+endfun
+
+fun! s:cmd_output_path(argc, argv)
+  let path = expand(a:argv[0])
+  if isdirectory(path)                         " /path/to/
+    let filename = expand('%:t:r')
+    if !empty(filename)                        " Named source file
+      return path.'/'.filename.'.png'
+    el                                         " Unnamed source file
+      let date = strftime('%Y-%m-%d_%H-%M-%S')
+      return path.'/silicon_'.date.'.png'
     en
   el
-    let path = expand(a:argv[0])
-    if isdirectory(path)                                  " /path/to/
-      let filename = expand('%:t:r')
-      if !empty(filename)                                 " Named source
-        let cmd += ['--output', path.'/'.filename.'.png']
-      el                                                  " Unnamed source
-        let date = strftime('%Y-%m-%d_%H-%M-%S')
-        let cmd += ['--output', path.'/silicon_'.date.'.png']
-      en
-    elseif empty(fnamemodify(path, ':e'))                 " /path/to/img
-      let cmd += ['--output', path.'.png']
-    el                                                    " /path/to/img.png
-      let cmd += ['--output', path]
-    en
+    return s:set_extension(path)               " /path/to/img.png
   en
-  " Language
+endfun
+
+fun! s:cmd_language(argc, argv)
   if !empty(&ft)
-    let cmd += ['--language', &ft]
+    return ['--language', &ft]
   el
     let ext = expand('%:e')
     if !empty(ext)
-      let cmd += ['--language', ext]
+      return ['--language', ext]
     el
-      let cmd += ['--language', 'txt']
+      return ['--language', 'txt']
     en
   en
-  " Configuration
-  for [key, val] in items(g:silicon)
-    if type(val) == type(v:false)
-      if val == v:false
-        let cmd += ['--no-'.key]
-      en
-    el
-      let cmd += ['--'.key, val]
-    en
-  endfor
-  return cmd
 endfun
 
-if has('nvim')
-  fun! s:dispatch(cmd, lines)
-    let id = jobstart(a:cmd)
-    call chansend(id, a:lines)
-    call chanclose(id)
-  endfun
-el
-  fun! s:dispatch(cmd, lines)
-    let id = job_start(a:cmd)
-    call ch_sendraw(id, a:lines)
-    call ch_close(id)
-  endfun
-en
+fun! s:cmd_config(argc, argv)
+  let flags = []
+  for [key, val] in items(g:silicon)
+    if has_key(s:default_cmd, key)
+      if type(val) == type(v:false)
+        if val == v:false
+          let flags += ['--no-'.key]
+        en
+      el
+        let flags += ['--'.key, val]
+      en
+    en
+  endfor
+  return flags
+endfun
 
 " Exposed API
 fun! silicon#generate(line1, line2, ...)
@@ -165,7 +199,8 @@ fun! silicon#generate(line1, line2, ...)
     call s:dispatch(cmd, lines)
     echo '[Silicon - Success]: Image Generated'
   catch
-    echohl ErrorMsg | echo "[Silicon - Error]:\n  - ".v:exception | echohl None
+    let v:errmsg = '[Silicon - Error]: '.v:exception
+    echohl ErrorMsg | echo v:errmsg | echohl None
   endtry
 endfun
 
@@ -176,12 +211,13 @@ fun! silicon#generate_highlighted(line1, line2, ...)
     en
     call s:validate(g:silicon, s:default)
     let cmd = s:cmd(a:0, a:000)
-    let cmd += ['--highlight-lines', a:line1.'-'.a:line2]
+          \ + ['--highlight-lines', a:line1.'-'.a:line2]
     let lines = join(getline('1', '$'), "\n")
     call s:dispatch(cmd, lines)
     echo '[Silicon - Success]: Highlighted Image Generated'
   catch
-    echohl ErrorMsg | echo "[Silicon - Error]:\n  - ".v:exception | echohl None
+    let v:errmsg = '[Silicon - Error]: '.v:exception
+    echohl ErrorMsg | echo v:errmsg | echohl None
   endtry
 endfun
 
