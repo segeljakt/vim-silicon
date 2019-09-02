@@ -187,7 +187,6 @@ fun! s:cmd_config(argc, argv)
   return flags
 endfun
 
-" Exposed API
 fun! silicon#generate(line1, line2, ...)
   try
     if mode() != 'n' && visualmode() != 'V'
@@ -221,3 +220,59 @@ fun! silicon#generate_highlighted(line1, line2, ...)
   endtry
 endfun
 
+" Completions
+
+" All possible flags that can be completed
+let s:all_flags = {}
+for key in keys(s:default)
+  let s:all_flags['--'.key] = v:true
+endfor
+
+" Current flags that have been completed
+fun! s:entered_flags(cmdline)
+  let entered_flags = []
+  let entered_path = ''
+  for arg in split(a:cmdline)[1:]
+    let entered_flag = matchstr(arg, '^--[a-z\-]\+')
+    if !empty(entered_flag)
+      let entered_flags += [entered_flag]
+    elseif arg !~ '^-'
+      let entered_path = arg
+    en
+  endfor
+  return [entered_flags, entered_path]
+endfun
+
+" Remaining flags to-be completed
+fun! s:remaining_flags(entered_flags)
+  let all_flags = copy(s:all_flags)
+  for entered_flag in a:entered_flags
+    if has_key(all_flags, entered_flag)
+      call remove(all_flags, entered_flag)
+    en
+  endfor
+  return keys(all_flags)
+endfun
+
+fun! silicon#complete(arglead, cmdline, cursorpos)
+  let [entered_flags, entered_path] = s:entered_flags(a:cmdline)
+  let remaining_flags = s:remaining_flags(entered_flags)
+  " Completely-entered config flag, e.g. --theme=GitHub, do nothing
+  if a:arglead =~ '^--[a-z\-]\+='
+    return [a:arglead]
+  en
+  " Partially-entered config flag, e.g. --th, complete it
+  let partial_flag = matchstr(a:arglead, '^--[a-z\-]\+$')
+  if !empty(partial_flag)
+    return map(filter(remaining_flags, {idx, flag -> flag =~ partial_flag}),
+          \ {idx, flag -> flag.'='})
+  en
+  " File path, complete either when
+  "   A) No flags have been entered, or
+  "   B) When the path is the current arg
+  if a:arglead == entered_path
+    return getcompletion(a:arglead, 'dir')
+  en
+  " Default case, complete remaining flags
+  return map(remaining_flags, {idx, flag -> flag.'='})
+endfun
