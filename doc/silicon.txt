@@ -38,7 +38,6 @@ to install silicon, which is most easily done using cargo:
 COMMANDS                                                *vim-silicon-commands*
 
     1. Silicon ........................................... |:Silicon|
-    2. SiliconHighlight .................................. |:SiliconHighlight|
 
 ------------------------------------------------------------------------------
                                                                     *:Silicon*
@@ -59,6 +58,10 @@ Examples:
     " Generate an image of the current visual line selection
     " and write it to /path/to/output.png
     :'<,'>Silicon /path/to/output.png
+
+    " Generate an image of the current buffer, with the current visual line
+    " selection highlighted.
+    :'<,'>Silicon! /path/to/output.png
 >
 
 ------------------------------------------------------------------------------
@@ -70,8 +73,9 @@ visual line selection highlighted.
 ==============================================================================
 OPTIONS                                                  *vim-silicon-options*
 
-    g:silicon ............................... |g:silicon|
-    g:silicon['default-file-name'] .......... |g:silicon['default-file-name']|
+    g:silicon .......................................... |g:silicon|
+    g:silicon-function ................................. |g:silicon|
+    g:silicon['output'] ................................ |g:silicon['output']|
 
 ------------------------------------------------------------------------------
                                                                    *g:silicon*
@@ -79,20 +83,19 @@ Type: dict ~
 Default: ~
 >
     let g:silicon = {
-          \ 'theme':              'Dracula',
-          \ 'font':                  'Hack',
-          \ 'background':         '#aaaaff',
-          \ 'shadow-color':       '#555555',
-          \ 'line-pad':                   2,
-          \ 'pad-horiz':                 80,
-          \ 'pad-vert':                 100,
-          \ 'shadow-blur-radius':         0,
-          \ 'shadow-offset-x':            0,
-          \ 'shadow-offset-y':            0,
-          \ 'line-number':           v:true,
-          \ 'round-corner':          v:true,
-          \ 'window-controls':       v:true,
-          \ 'default-file-pattern'       '',
+          \   'theme':              'Dracula',
+          \   'font':                  'Hack',
+          \   'background':         '#AAAAFF',
+          \   'shadow-color':       '#555555',
+          \   'line-pad':                   2,
+          \   'pad-horiz':                 80,
+          \   'pad-vert':                 100,
+          \   'shadow-blur-radius':         0,
+          \   'shadow-offset-x':            0,
+          \   'shadow-offset-y':            0,
+          \   'line-number':           v:true,
+          \   'round-corner':          v:true,
+          \   'window-controls':       v:true,
           \ }
 >
 
@@ -101,22 +104,53 @@ To get the list of available themes, you can run this in the terminal:
 >
     silicon --list-themes
 >
-
-For more details about options, please see https://github.com/Aloxaf/silicon.
+>
+For more details about each option, see https://github.com/Aloxaf/silicon.
 
 ------------------------------------------------------------------------------
-                                           *g:silicon['default-file-pattern']*
+                                                          *g:silicon-function*
+
+Instead of assigning values to flags in `g:silicon`, you can assign functions
+which expand into values right before generating the images.
+
+For example, to save images into different directories depending on whether
+you are at work or not, you can use the following.
+
+>
+    let s:workhours = {
+          \ 'Monday':    [8, 16],
+          \ 'Tuesday':   [9, 17],
+          \ 'Wednesday': [9, 17],
+          \ 'Thursday':  [9, 17],
+          \ 'Friday':    [9, 15],
+          \ }
+
+    function! s:working()
+        let day = strftime('%u')
+        if has_key(s:workhours, day)
+          let hour = strftime('%H')
+          let [start_hour, stop_hour] = s:workhours[day]
+          if start_hour <= hour && hour <= stop_hour
+            return "~/Work-Snippets/"
+          endif
+        endif
+        return "~/Personal-Snippets/"
+    endfunction
+
+    let g:silicon['output'] = function('s:working')
+>
+
+------------------------------------------------------------------------------
+                                                         *g:silicon['output']*
 
 If set to a non-empty string, it'll be used as the default filename when
-|:Silicon| is called with no arguments. Note that this means you could no
-longer copy to clipboard, unless you manually reset it to an empty string.
+|:Silicon| is called with no arguments.
 
 It's possible to embed a timestamp into the filename by using the
 `{time:<strftime() specifier>}` format. As an example:
 
 >
-    let g:silicon['default-file-pattern'] =
-            \ '~/images/silicon-{time:%Y-%m-%d-%H%M%S}.png'
+    let g:silicon['output'] = '~/images/silicon-{time:%Y-%m-%d-%H%M%S}.png'
 >
 
 This might result in the file: `~/images/silicon-2019-08-10-164233.png`.
@@ -129,7 +163,7 @@ See |strftime()| and |expand()| for more information.
 ==============================================================================
 NOTES                                                      *vim-silicon-notes*
 
-Currently, `silicon` only supports copying to clipboard on Linux.
+Currently, `silicon` only supports copying to clipboard on Linux and macOS.
 
 ==============================================================================
 " vim:tw=78:ts=4:sts=4:sw=4:ft=help:norl:
