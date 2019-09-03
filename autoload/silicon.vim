@@ -224,11 +224,11 @@ endfun
 
 " All possible flags that can be completed
 fun s:all_flags()
-  let s:all_flags = {}
+  let all_flags = {}
   for [key, val] in items(s:default)
-    let s:all_flags['--'.key] = val
+    let all_flags['--'.key] = val
   endfor
-  return s:all_flags
+  return all_flags
 endfun
 
 " Current flags that have been completed
