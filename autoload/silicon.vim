@@ -223,19 +223,22 @@ endfun
 " Completions
 
 " All possible flags that can be completed
-let s:all_flags = {}
-for key in keys(s:default)
-  let s:all_flags['--'.key] = v:true
-endfor
+fun s:all_flags()
+  let s:all_flags = {}
+  for [key, val] in items(s:default)
+    let s:all_flags['--'.key] = val
+  endfor
+  return s:all_flags
+endfun
 
 " Current flags that have been completed
 fun! s:entered_flags(cmdline)
-  let entered_flags = []
+  let entered_flags = {}
   let entered_path = ''
   for arg in split(a:cmdline)[1:]
-    let entered_flag = matchstr(arg, '^--[a-z\-]\+')
-    if !empty(entered_flag)
-      let entered_flags += [entered_flag]
+    let flag = matchstr(arg, '^--[a-z\-]\+')
+    if !empty(flag)
+      let entered_flags[flag] = v:null
     elseif arg !~ '^-'
       let entered_path = arg
     en
@@ -244,19 +247,20 @@ fun! s:entered_flags(cmdline)
 endfun
 
 " Remaining flags to-be completed
-fun! s:remaining_flags(entered_flags)
-  let all_flags = copy(s:all_flags)
-  for entered_flag in a:entered_flags
-    if has_key(all_flags, entered_flag)
-      call remove(all_flags, entered_flag)
+fun! s:remaining_flags(all_flags, entered_flags)
+  let remaining_flags = copy(a:all_flags)
+  for entered_flag in keys(a:entered_flags)
+    if has_key(remaining_flags, entered_flag)
+      call remove(remaining_flags, entered_flag)
     en
   endfor
-  return keys(all_flags)
+  return remaining_flags
 endfun
 
 fun! silicon#complete(arglead, cmdline, cursorpos)
+  let all_flags = s:all_flags()
   let [entered_flags, entered_path] = s:entered_flags(a:cmdline)
-  let remaining_flags = s:remaining_flags(entered_flags)
+  let remaining_flags = s:remaining_flags(all_flags, entered_flags)
   " Completely-entered config flag, e.g. --theme=GitHub, do nothing
   if a:arglead =~ '^--[a-z\-]\+='
     return [a:arglead]
@@ -264,8 +268,8 @@ fun! silicon#complete(arglead, cmdline, cursorpos)
   " Partially-entered config flag, e.g. --th, complete it
   let partial_flag = matchstr(a:arglead, '^--[a-z\-]\+$')
   if !empty(partial_flag)
-    return map(filter(remaining_flags, {idx, flag -> flag =~ partial_flag}),
-          \ {idx, flag -> flag.'='})
+    return values(map(filter(remaining_flags, {flag, type -> flag =~ partial_flag}),
+          \ {flag, val -> flag.'='.string(val)}))
   en
   " File path, complete either when
   "   A) No flags have been entered, or
@@ -274,5 +278,5 @@ fun! silicon#complete(arglead, cmdline, cursorpos)
     return getcompletion(a:arglead, 'dir')
   en
   " Default case, complete remaining flags
-  return map(remaining_flags, {idx, flag -> flag.'='})
+  return values(map(remaining_flags, {flag, val -> flag.'='.string(val)}))
 endfun
