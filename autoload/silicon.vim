@@ -21,21 +21,26 @@ let s:typename = [
       \ ]
 
 fun! s:on_stdout(chan_id, data, name)
-  echo 'stdout: '.string([a:chan_id, a:data, a:name])
+"   echomsg 'stdout: '.string([a:chan_id, a:data, a:name])
 endfun
 
 fun! s:on_stderr(chan_id, data, name)
-  echo 'stderr: '.string([a:chan_id, a:data, a:name])
+"   echomsg 'stderr: '.string([a:chan_id, a:data, a:name])
 endfun
 
 fun! s:on_exit(chan_id, data, name)
-  echo 'exit: '.string([a:chan_id, a:data, a:name])
+"   echomsg 'exit: '.string([a:chan_id, a:data, a:name])
+endfun
+
+fun! s:on_data(chan_id, data, name)
+"   echomsg 'data: '.string([a:chan_id, a:data, a:name])
 endfun
 
 let s:job_options = {
           \ "on_stdout": function("s:on_stdout"),
           \ "on_stderr": function("s:on_stderr"),
           \ "on_exit":   function("s:on_exit"),
+          \ "on_data":   function("s:on_data"),
           \ }
 
 " Job-dispatch
@@ -241,12 +246,12 @@ fun! silicon#generate(line1, line2, ...)
     let [path, flags] = s:entered_flags(a:000)
     let cmd = s:cmd(path, flags)
     let lines = join(getline(a:line1, a:line2), "\n")
-    call system('echo "'.lines.'" | '.join(cmd))
+    echomsg string(cmd)
     call s:dispatch(cmd, lines)
-    echo '[Silicon - Success]: Image Generated'
+    echomsg '[Silicon - Success]: Image Generated'
   catch
     let v:errmsg = '[Silicon - Error]: '.v:exception
-    echohl ErrorMsg | echo v:errmsg | echohl None
+    echohl ErrorMsg | echomsg v:errmsg | echohl None
   endtry
 endfun
 
@@ -260,10 +265,10 @@ fun! silicon#generate_highlighted(line1, line2, ...)
     let cmd = s:cmd(path, flags) + ['--highlight-lines', a:line1.'-'.a:line2]
     let lines = join(getline('1', '$'), "\n")
     call s:dispatch(cmd, lines)
-    echo '[Silicon - Success]: Highlighted Image Generated'
+    echomsg '[Silicon - Success]: Highlighted Image Generated'
   catch
     let v:errmsg = '[Silicon - Error]: '.v:exception
-    echohl ErrorMsg | echo v:errmsg | echohl None
+    echohl ErrorMsg | echomsg v:errmsg | echohl None
   endtry
 endfun
 
