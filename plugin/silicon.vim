@@ -6,13 +6,13 @@
 
 com!
   \ -range=%
-  \ -nargs=?
+  \ -nargs=*
   \ -complete=customlist,silicon#complete
   \ Silicon call silicon#generate(<line1>, <line2>, <f-args>)
 
 com!
   \ -range
-  \ -nargs=?
+  \ -nargs=*
   \ -complete=customlist,silicon#complete
   \ SiliconHighlight call silicon#generate_highlighted(<line1>, <line2>, <f-args>)
 

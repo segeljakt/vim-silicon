@@ -20,16 +20,34 @@ let s:typename = [
       \ 'null',
       \ ]
 
+fun! s:on_stdout(chan_id, data, name)
+  echo 'stdout: '.string([a:chan_id, a:data, a:name])
+endfun
+
+fun! s:on_stderr(chan_id, data, name)
+  echo 'stderr: '.string([a:chan_id, a:data, a:name])
+endfun
+
+fun! s:on_exit(chan_id, data, name)
+  echo 'exit: '.string([a:chan_id, a:data, a:name])
+endfun
+
+let s:job_options = {
+          \ "on_stdout": function("s:on_stdout"),
+          \ "on_stderr": function("s:on_stderr"),
+          \ "on_exit":   function("s:on_exit"),
+          \ }
+
 " Job-dispatch
 if has('nvim')
   fun! s:dispatch(cmd, lines)
-    let id = jobstart(a:cmd)
+    let id = jobstart(a:cmd, s:job_options)
     call chansend(id, a:lines)
     call chanclose(id)
   endfun
 el
   fun! s:dispatch(cmd, lines)
-    let id = job_start(a:cmd)
+    let id = job_start(a:cmd, s:job_options)
     call ch_sendraw(id, a:lines)
     call ch_close(id)
   endfun
@@ -38,22 +56,21 @@ en
 " First, check that silicon is installed. Then, check for unexpected keys and
 " type mismatches in a:config, using a:default as reference. If any are found,
 " an exception is thrown.
-fun! s:validate(config, default)
+fun! s:validate(config, spec)
   if empty(executable('silicon'))
     throw 'vim-silicon requires `silicon` to be installed. '
           \ .'Please refer to the installation instructions in the README.md.'
   en
   let errors = []
   for [key, val] in items(a:config)
-    if !has_key(a:default, key)
+    if !has_key(a:spec, key)
       let errors += ['Unexpected key '.string(key)]
     el
-      let default_val = a:default[key]
-      let found = type(val)
-      let expected = type(default_val)
+      let default_val = a:spec[key][s:default]
+      let [found, expected] = [type(val), type(default_val)]
       if found != expected
         let errors += [
-              \ 'Type mismatch in key '.string(key)
+              \ 'Type mismatch for key '.string(key)
               \ .', found '.string(s:typename[found])
               \ .', expected '.string(s:typename[expected])
               \ .', e.g. '.string(default_val)
@@ -67,58 +84,81 @@ fun! s:validate(config, default)
   en
 endfun
 
-" Creates/derives a configuration based on a default configuration
-fun! s:configure(name, default)
+" Creates/derives a configuration based on the internal config specification
+fun! s:configure(name, spec)
   if !exists(a:name)
-    let {a:name} = a:default
+    let {a:name} = map(a:spec, "v:val[s:default]")
   el
     let config = {a:name}
-    for [key, val] in items(a:default)
-      if !has_key(config, key)
-        let config[key] = val
+    for [key, val] in items(a:spec)
+      if !has_key(config, key) && val[s:default] != v:null
+        let config[key] = val[s:default]
       en
     endfor
   en
 endfun
 
-" Default configuration
-let s:default_cmd = {
-      \   'theme':                'Dracula',
-      \   'font':                    'Hack',
-      \   'background':           '#aaaaff',
-      \   'shadow-color':         '#555555',
-      \   'line-pad':                     2,
-      \   'pad-horiz':                   80,
-      \   'pad-vert':                   100,
-      \   'shadow-blur-radius':           0,
-      \   'shadow-offset-x':              0,
-      \   'shadow-offset-y':              0,
-      \   'line-number':             v:true,
-      \   'round-corner':            v:true,
-      \   'window-controls':         v:true,
-      \ }
-
-let s:default_vim = {
-      \   'default-file-pattern':        '',
-      \ }
-
-let s:default = extend(copy(s:default_cmd), s:default_vim)
-
-call s:configure('g:silicon', s:default)
-
-" Silicon bindings
-fun! s:cmd(argc, argv)
-  return ['silicon']
-        \ + s:cmd_output(a:argc, a:argv)
-        \ + s:cmd_language(a:argc, a:argv)
-        \ + s:cmd_config(a:argc, a:argv)
+" Possible completions for themes
+fun! s:themes(key, val)
+	return filter(systemlist('silicon --list-themes'), "v:val =~ a:val")
 endfun
 
-fun! s:cmd_output(argc, argv)
-  if a:argc > 0
-    return ['--output', s:cmd_output_path(a:argc, a:argv)]
+" Possible completions for bools
+fun! s:bools(key, val)
+  return filter([v:true, v:false], "v:val =~ a:val")
+endfun
+
+fun! s:langs(key, val)
+  return getcompletion(a:val, 'filetype')
+endfun
+
+" Possible completions for other types
+fun! s:others(key, val)
+  let current = g:silicon[a:key]
+  let default = s:silicon[a:key][s:default]
+  return filter(current == default || empty(default)? [current] : [current, default],
+        \ "v:val =~ a:val")
+endfun
+
+fun! s:fonts(key, val)
+  return filter(systemlist('fc-list : family'), "v:val =~ a:val")
+endfun
+
+" Config specification
+let [s:default, s:is_flag, s:completions] = range(0, 2) " Column labels
+let s:silicon = {
+      \   'theme':                [ 'Dracula',  v:true,  function('s:themes') ],
+      \   'font':                 [    'Hack',  v:true,  function('s:fonts')  ],
+      \   'background':           [ '#aaaaff',  v:true,  function('s:others') ],
+      \   'shadow-color':         [ '#555555',  v:true,  function('s:others') ],
+      \   'line-pad':             [         2,  v:true,  function('s:others') ],
+      \   'pad-horiz':            [        80,  v:true,  function('s:others') ],
+      \   'pad-vert':             [       100,  v:true,  function('s:others') ],
+      \   'shadow-blur-radius':   [         0,  v:true,  function('s:others') ],
+      \   'shadow-offset-x':      [         0,  v:true,  function('s:others') ],
+      \   'shadow-offset-y':      [         0,  v:true,  function('s:others') ],
+      \   'line-number':          [    v:true,  v:true,  function('s:bools')  ],
+      \   'round-corner':         [    v:true,  v:true,  function('s:bools')  ],
+      \   'window-controls':      [    v:true,  v:true,  function('s:bools')  ],
+      \   'language':             [    v:null,  v:true,  function('s:langs')  ],
+      \   'default-file-pattern': [        '',  v:false, function('s:others') ],
+      \ }
+
+call s:configure('g:silicon', s:silicon)
+
+" Silicon bindings
+fun! s:cmd(path, flags)
+  return ['silicon']
+        \ + s:cmd_output(a:path, a:flags)
+        \ + s:cmd_language(a:path, a:flags)
+        \ + s:cmd_config(a:path, a:flags)
+endfun
+
+fun! s:cmd_output(path, flags)
+  if !empty(a:path)
+    return ['--output', s:cmd_output_path(a:path, a:flags)]
   elseif !empty(g:silicon['default-file-pattern'])
-    return ['--output', s:cmd_output_pattern(a:argc, a:argv)]
+    return ['--output', s:cmd_file_pattern(a:path, a:flags)]
   elseif !empty(executable('xclip'))
     return ['--to-clipboard']
   el
@@ -135,7 +175,7 @@ fun! s:set_extension(path)
   en
 endfun
 
-fun! s:cmd_output_pattern(argc, argv)
+fun! s:cmd_file_pattern(path, flags)
   let path = g:silicon['default-file-pattern']
   let path = substitute(path, '{time:\(.\{-}\)}', {match -> strftime(match[1])}, 'g')
   let path = substitute(path, '{file:\(.\{-}\)}', {match -> expand(match[1])}, 'g')
@@ -143,44 +183,49 @@ fun! s:cmd_output_pattern(argc, argv)
   return s:set_extension(path)
 endfun
 
-fun! s:cmd_output_path(argc, argv)
-  let path = expand(a:argv[0])
-  if isdirectory(path)                         " /path/to/
+fun! s:cmd_output_path(path, flags)
+  let realpath = expand(a:path)
+  if isdirectory(realpath)                     " /path/to/
     let filename = expand('%:t:r')
     if !empty(filename)                        " Named source file
-      return path.'/'.filename.'.png'
+      return realpath.'/'.filename.'.png'
     el                                         " Unnamed source file
       let date = strftime('%Y-%m-%d_%H-%M-%S')
-      return path.'/silicon_'.date.'.png'
+      return realpath.'/silicon_'.date.'.png'
     en
   el
-    return s:set_extension(path)               " /path/to/img.png
+    return s:set_extension(realpath)           " /path/to/img.png
   en
 endfun
 
-fun! s:cmd_language(argc, argv)
+fun! s:infer_language()
   if !empty(&ft)
-    return ['--language', &ft]
+    return &ft
   el
     let ext = expand('%:e')
     if !empty(ext)
-      return ['--language', ext]
+      return ext
     el
-      return ['--language', 'txt']
+      return 'txt'
     en
   en
 endfun
 
-fun! s:cmd_config(argc, argv)
+fun! s:cmd_language(path, flags)
+  return ['--language', string(get(a:flags, 'language', s:infer_language()))]
+endfun
+
+fun! s:cmd_config(path, flags)
   let flags = []
   for [key, val] in items(g:silicon)
-    if has_key(s:default_cmd, key)
-      if type(val) == type(v:false)
+    let val = get(a:flags, key, val) " Override
+    if s:silicon[key][s:is_flag]
+      if type(val) == v:t_bool
         if val == v:false
           let flags += ['--no-'.key]
         en
       el
-        let flags += ['--'.key, val]
+        let flags += ['--'.key, string(val)]
       en
     en
   endfor
@@ -192,9 +237,11 @@ fun! silicon#generate(line1, line2, ...)
     if mode() != 'n' && visualmode() != 'V'
       throw 'Command can only be called from Normal or Visual Line mode.'
     en
-    call s:validate(g:silicon, s:default)
-    let cmd = s:cmd(a:0, a:000)
+    call s:validate(g:silicon, s:silicon)
+    let [path, flags] = s:entered_flags(a:000)
+    let cmd = s:cmd(path, flags)
     let lines = join(getline(a:line1, a:line2), "\n")
+    call system('echo "'.lines.'" | '.join(cmd))
     call s:dispatch(cmd, lines)
     echo '[Silicon - Success]: Image Generated'
   catch
@@ -208,9 +255,9 @@ fun! silicon#generate_highlighted(line1, line2, ...)
     if visualmode() != 'V'
       throw 'Command can only be called from Visual Line mode.'
     en
-    call s:validate(g:silicon, s:default)
-    let cmd = s:cmd(a:0, a:000)
-          \ + ['--highlight-lines', a:line1.'-'.a:line2]
+    call s:validate(g:silicon, s:silicon)
+    let [path, flags] = s:entered_flags(a:000)
+    let cmd = s:cmd(path, flags) + ['--highlight-lines', a:line1.'-'.a:line2]
     let lines = join(getline('1', '$'), "\n")
     call s:dispatch(cmd, lines)
     echo '[Silicon - Success]: Highlighted Image Generated'
@@ -225,25 +272,27 @@ endfun
 " All possible flags that can be completed
 fun s:all_flags()
   let all_flags = {}
-  for [key, val] in items(s:default)
-    let all_flags['--'.key] = val
+  for [key, val] in items(s:silicon)
+    let all_flags[key] = val['default']
   endfor
+  let all_flags.language = s:infer_language()
   return all_flags
 endfun
 
 " Current flags that have been completed
-fun! s:entered_flags(cmdline)
+fun! s:entered_flags(args)
   let entered_flags = {}
   let entered_path = ''
-  for arg in split(a:cmdline)[1:]
-    let flag = matchstr(arg, '^--[a-z\-]\+')
-    if !empty(flag)
-      let entered_flags[flag] = v:null
+  for arg in a:args
+    let matches = matchlist(arg, '\v^--([a-z\-]+)\=(.+)$')
+    if !empty(matches)
+      let [flag, val] = matches[1:2]
+      let entered_flags[flag] = val
     elseif arg !~ '^-'
       let entered_path = arg
     en
   endfor
-  return [entered_flags, entered_path]
+  return [entered_path, entered_flags]
 endfun
 
 " Remaining flags to-be completed
@@ -259,24 +308,27 @@ endfun
 
 fun! silicon#complete(arglead, cmdline, cursorpos)
   let all_flags = s:all_flags()
-  let [entered_flags, entered_path] = s:entered_flags(a:cmdline)
+  let [entered_path, entered_flags] = s:entered_flags(split(a:cmdline)[1:])
   let remaining_flags = s:remaining_flags(all_flags, entered_flags)
-  " Completely-entered config flag, e.g. --theme=GitHub, do nothing
-  if a:arglead =~ '^--[a-z\-]\+='
-    return [a:arglead]
-  en
-  " Partially-entered config flag, e.g. --th, complete it
-  let partial_flag = matchstr(a:arglead, '^--[a-z\-]\+$')
-  if !empty(partial_flag)
-    return values(map(filter(remaining_flags, {flag, type -> flag =~ partial_flag}),
-          \ {flag, val -> flag.'='.string(val)}))
-  en
-  " File path, complete either when
-  "   A) No flags have been entered, or
-  "   B) When the path is the current arg
-  if a:arglead == entered_path
+  let matches = matchlist(a:arglead, '\v^--([a-z\-]+)(\=(.+)?)?$')
+  if !empty(matches)
+    let [key, eq, val] = matches[1:3]
+    if !empty(eq)
+      if has_key(s:silicon, key)
+        " Complete value
+        return map(s:silicon[key][s:completions](key, val), "'--'.key.'='.v:val")
+      el
+        return []
+      en
+    el
+      " Complete key
+      return sort(values(map(filter(remaining_flags, "v:key =~ key"), "'--'.v:key")))
+    en
+  elseif a:arglead == entered_path
+    " Complete path
     return getcompletion(a:arglead, 'dir')
+  el
+    " Complete remaining flags
+    return sort(values(map(remaining_flags, "'--'.v:key")))
   en
-  " Default case, complete remaining flags
-  return values(map(remaining_flags, {flag, val -> flag.'='.string(val)}))
 endfun
