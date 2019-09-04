@@ -161,9 +161,9 @@ endfun
 
 fun! s:cmd_output(path, flags)
   if !empty(a:path)
-    return ['--output', s:cmd_output_path(a:path, a:flags)]
+    return ['--output', s:set_extension(s:cmd_output_path(a:path, a:flags))]
   elseif !empty(g:silicon['default-file-pattern'])
-    return ['--output', s:cmd_file_pattern(a:path, a:flags)]
+    return ['--output', s:set_extension(s:cmd_file_pattern(a:path, a:flags))]
   elseif !empty(executable('xclip'))
     return ['--to-clipboard']
   el
@@ -185,21 +185,21 @@ fun! s:cmd_file_pattern(path, flags)
   let path = substitute(path, '{time:\(.\{-}\)}', {match -> strftime(match[1])}, 'g')
   let path = substitute(path, '{file:\(.\{-}\)}', {match -> expand(match[1])}, 'g')
   let path = fnamemodify(path, ':p')
-  return s:set_extension(path)
+  return path
 endfun
 
 fun! s:cmd_output_path(path, flags)
   let realpath = expand(a:path)
   if isdirectory(realpath)                     " /path/to/
     let filename = expand('%:t:r')
+    let date = strftime('%Y-%m-%d_%H:%M:%S')
     if !empty(filename)                        " Named source file
-      return realpath.'/'.filename.'.png'
+      return realpath.'/'.filename.'_'.date
     el                                         " Unnamed source file
-      let date = strftime('%Y-%m-%d_%H-%M-%S')
-      return realpath.'/silicon_'.date.'.png'
+      return realpath.'/silicon_'.date
     en
   el
-    return s:set_extension(realpath)           " /path/to/img.png
+    return realpath                            " /path/to/img.png
   en
 endfun
 
@@ -217,7 +217,7 @@ fun! s:infer_language()
 endfun
 
 fun! s:cmd_language(path, flags)
-  return ['--language', string(get(a:flags, 'language', s:infer_language()))]
+  return ['--language', get(a:flags, 'language', s:infer_language())]
 endfun
 
 fun! s:cmd_config(path, flags)
@@ -230,7 +230,7 @@ fun! s:cmd_config(path, flags)
           let flags += ['--no-'.key]
         en
       el
-        let flags += ['--'.key, string(val)]
+        let flags += ['--'.key, val]
       en
     en
   endfor
