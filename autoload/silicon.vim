@@ -50,18 +50,18 @@ fun! s:handler(channel_id, data, name)
 "   en
 endfun
 
-const s:job_options = {
-      \   'on_stdout': function('s:handler'),
-      \   'on_stderr': function('s:handler'),
-      \   'on_exit':   function('s:handler'),
-      \   'on_data':   function('s:handler'),
-      \ }
+const s:job_options = {}
+"       \   'on_stdout': function('s:handler'),
+"       \   'on_stderr': function('s:handler'),
+"       \   'on_exit':   function('s:handler'),
+"       \   'on_data':   function('s:handler'),
+"       \ }
 
 " ------------------------------ Error handling ------------------------------
 
 " Info: Prints a warning message
 fun! s:print_warning(msg)
-	echoh WarningMsg | echom "[Silicon - Warning]: ".a:msg | echoh None
+	echoh WarningMsg | echom '[Silicon - Warning]: '.a:msg | echoh None
 endfun
 
 " Info: Prints an error message
@@ -72,7 +72,7 @@ endfun
 
 " Info: Prints a silent info message
 fun! s:print_info(msg)
-	echom "[Silicon - Info]: ".a:msg
+	echom '[Silicon - Info]: '.a:msg
 endfun
 
 " Info: Formats a list of errors
@@ -85,7 +85,7 @@ endfun
 " Info: Either creates or derives a configuration based on a specification
 fun! s:configure(name, spec)
   if !exists(a:name)
-    let {a:name} = map(deepcopy(a:spec), "v:val[s:default]")
+    let {a:name} = map(copy(a:spec), "v:val[s:default]")
   el
     let config = {a:name}
     for [key, val] in items(a:spec)
@@ -200,26 +200,14 @@ endfun
 
 " ----------------------------- Command builder ------------------------------
 
-let s:cached_input = []
-let s:cached_output = v:null
-
-fun! s:cmd(binary, args, config, spec)
-  if s:cached_input != [a:args, a:config]
-    let s:cached_input = [a:args, a:config]
-    let s:cached_output = s:create_cmd(a:binary, a:args, a:config, a:spec)
-  en
-  return s:cached_output
-endfun
-
 " Info: Build a command
-fun! s:create_cmd(binary, args, config, spec)
-  let s:cached_input = [a:args, a:config]
+fun! s:cmd(binary, args, config, spec)
   let [path, flags, errors] = s:entered_flags(a:args, a:spec)
   if !empty(errors)
     throw s:format_errors(errors)
   en
   let flags.output = path
-  let config = deepcopy(a:config)
+  let config = copy(a:config)
   call s:override(config, flags)
   call s:expand(config)
   let errors = s:validate(a:binary, a:spec, config)
@@ -358,7 +346,7 @@ endfun
 
 " Info: Returns all flags that can be completed
 fun s:all_flags(spec)
-  let all_flags = map(deepcopy(a:spec), "v:val[s:default]")
+  let all_flags = map(copy(a:spec), "v:val[s:default]")
   call remove(all_flags, 'output') " Output is treated differently
   return all_flags
 endfun
@@ -399,7 +387,7 @@ endfun
 
 " Info: Returns remaining flags to-be completed
 fun! s:remaining_flags(all_flags, entered_flags)
-  let remaining_flags = deepcopy(a:all_flags)
+  let remaining_flags = copy(a:all_flags)
   for entered_flag in keys(a:entered_flags)
     if has_key(remaining_flags, entered_flag)
       call remove(remaining_flags, entered_flag)
