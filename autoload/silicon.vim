@@ -6,10 +6,10 @@
 
 if exists('s:autoloaded') | finish | el | let s:autoloaded = v:true | en
 
-" Plugin-independent Helpers
+" ====================== Plugin-Independent Functions ========================
 
-" Mapping from type-number to type-name
-let s:typename = [
+" Info: Mapping from type-number to type-name
+const s:typename = [
       \ 'number',
       \ 'string',
       \ 'func',
@@ -20,79 +20,72 @@ let s:typename = [
       \ 'null',
       \ ]
 
-fun! s:on_stdout(chan_id, data, name)
-"   echomsg 'stdout: '.string([a:chan_id, a:data, a:name])
-endfun
+" ------------------------- Vim/Neovim Compatibility -------------------------
 
-fun! s:on_stderr(chan_id, data, name)
-"   echomsg 'stderr: '.string([a:chan_id, a:data, a:name])
-endfun
-
-fun! s:on_exit(chan_id, data, name)
-"   echomsg 'exit: '.string([a:chan_id, a:data, a:name])
-endfun
-
-fun! s:on_data(chan_id, data, name)
-"   echomsg 'data: '.string([a:chan_id, a:data, a:name])
-endfun
-
-let s:job_options = {
-          \ "on_stdout": function("s:on_stdout"),
-          \ "on_stderr": function("s:on_stderr"),
-          \ "on_exit":   function("s:on_exit"),
-          \ "on_data":   function("s:on_data"),
-          \ }
-
-" Job-dispatch
+" Info: Starts a:cmd as a job and passes a:data as input to it
 if has('nvim')
-  fun! s:dispatch(cmd, lines)
+  fun! s:run(cmd, data)
     let id = jobstart(a:cmd, s:job_options)
-    call chansend(id, a:lines)
+    call chansend(id, a:data)
     call chanclose(id)
   endfun
 el
-  fun! s:dispatch(cmd, lines)
+  fun! s:run(cmd, data)
     let id = job_start(a:cmd, s:job_options)
-    call ch_sendraw(id, a:lines)
+    call ch_sendraw(id, a:data)
     call ch_close(id)
   endfun
 en
 
-" First, check that silicon is installed. Then, check for unexpected keys and
-" type mismatches in a:config, using a:default as reference. If any are found,
-" an exception is thrown.
-fun! s:validate(config, spec)
-  if empty(executable('silicon'))
-    throw 'vim-silicon requires `silicon` to be installed. '
-          \ .'Please refer to the installation instructions in the README.md.'
-  en
-  let errors = []
-  for [key, val] in items(a:config)
-    if !has_key(a:spec, key)
-      let errors += ['Unexpected key '.string(key)]
-    el
-      let default_val = a:spec[key][s:default]
-      let [found, expected] = [type(val), type(default_val)]
-      if found != expected
-        let errors += [
-              \ 'Type mismatch for key '.string(key)
-              \ .', found '.string(s:typename[found])
-              \ .', expected '.string(s:typename[expected])
-              \ .', e.g. '.string(default_val)
-              \ ]
-      en
-    en
-  endfor
-  if !empty(errors)
-    let sep = "\n  - "
-    throw sep + join(errors, sep)
-  en
+" Info: Callback for job
+fun! s:handler(channel_id, data, name)
+"   if a:name == 'stdout'
+"     call s:print_info('stdout: '.join(a:data))
+"   elseif a:name == 'stderr'
+"     call s:print_info('stderr: '.join(a:data))
+"   elseif a:name == 'exit'
+"     call s:print_info('exited')
+"   elseif a:name == 'data'
+"     call s:print_info('???')
+"   en
 endfun
 
-" Creates/derives a configuration based on the internal config specification
+const s:job_options = {
+      \   'on_stdout': function('s:handler'),
+      \   'on_stderr': function('s:handler'),
+      \   'on_exit':   function('s:handler'),
+      \   'on_data':   function('s:handler'),
+      \ }
+
+" ------------------------------ Error handling ------------------------------
+
+" Info: Prints a warning message
+fun! s:print_warning(msg)
+	echoh WarningMsg | echom "[Silicon - Warning]: ".a:msg | echoh None
+endfun
+
+" Info: Prints an error message
+fun! s:print_error(msg)
+  let v:errmsg = '[Silicon - Error]: '.v:exception
+  echoh ErrorMsg | echom v:errmsg | echoh None
+endfun
+
+" Info: Prints a silent info message
+fun! s:print_info(msg)
+	echom "[Silicon - Info]: ".a:msg
+endfun
+
+" Info: Formats a list of errors
+fun! s:format_errors(errors)
+  return "\n  - " . join(a:errors, "\n  - ")
+endfun
+
+" ----------------------------- Configuration ------------------------------
+
+" Info: Either creates or derives a configuration based on a specification
 fun! s:configure(name, spec)
   if !exists(a:name)
-    let {a:name} = map(a:spec, "v:val[s:default]")
+    let {a:name} = map(deepcopy(a:spec), "v:val[s:default]")
   el
     let config = {a:name}
     for [key, val] in items(a:spec)
@@ -103,106 +96,86 @@ fun! s:configure(name, spec)
   en
 endfun
 
-" Possible completions for themes
-fun! s:themes(key, val)
-	return filter(systemlist('silicon --list-themes'), "v:val =~ a:val")
-endfun
-
-" Possible completions for bools
-fun! s:bools(key, val)
-  return filter([v:true, v:false], "v:val =~ a:val")
-endfun
-
-fun! s:langs(key, val)
-  return getcompletion(a:val, 'filetype')
-endfun
-
-" Possible completions for other types
-fun! s:others(key, val)
-  let current = g:silicon[a:key]
-  let default = s:silicon[a:key][s:default]
-  return filter(current == default || empty(default)? [current] : [current, default],
-        \ "v:val =~ a:val")
-endfun
-
-fun! s:fonts(key, val)
-  return filter(systemlist('fc-list : family'), "v:val =~ a:val")
-endfun
-
-" Config specification
-let [s:default, s:is_flag, s:completions] = range(0, 2) " Column labels
-let s:silicon = {
-      \   'theme':                [ 'Dracula',  v:true,  function('s:themes') ],
-      \   'font':                 [    'Hack',  v:true,  function('s:fonts')  ],
-      \   'background':           [ '#aaaaff',  v:true,  function('s:others') ],
-      \   'shadow-color':         [ '#555555',  v:true,  function('s:others') ],
-      \   'line-pad':             [         2,  v:true,  function('s:others') ],
-      \   'pad-horiz':            [        80,  v:true,  function('s:others') ],
-      \   'pad-vert':             [       100,  v:true,  function('s:others') ],
-      \   'shadow-blur-radius':   [         0,  v:true,  function('s:others') ],
-      \   'shadow-offset-x':      [         0,  v:true,  function('s:others') ],
-      \   'shadow-offset-y':      [         0,  v:true,  function('s:others') ],
-      \   'line-number':          [    v:true,  v:true,  function('s:bools')  ],
-      \   'round-corner':         [    v:true,  v:true,  function('s:bools')  ],
-      \   'window-controls':      [    v:true,  v:true,  function('s:bools')  ],
-      \   'language':             [    v:null,  v:true,  function('s:langs')  ],
-      \   'default-file-pattern': [        '',  v:false, function('s:others') ],
-      \ }
-
-call s:configure('g:silicon', s:silicon)
-
-" Silicon bindings
-fun! s:cmd(path, flags)
-  return ['silicon']
-        \ + s:cmd_output(a:path, a:flags)
-        \ + s:cmd_language(a:path, a:flags)
-        \ + s:cmd_config(a:path, a:flags)
-endfun
-
-fun! s:cmd_output(path, flags)
-  if !empty(a:path)
-    return ['--output', s:set_extension(s:cmd_output_path(a:path, a:flags))]
-  elseif !empty(g:silicon['default-file-pattern'])
-    return ['--output', s:set_extension(s:cmd_file_pattern(a:path, a:flags))]
-  elseif !empty(executable('xclip'))
-    return ['--to-clipboard']
-  el
-    throw 'Copying to clipboard is only supported on Linux with xclip installed. '
-          \ .'Please specify a path instead.'
+" Info: Identifies and warns about deprecated features
+fun! s:deprecate(config)
+  if has_key(a:config, 'default-file-pattern')
+    call s:print_warning('"default-file-pattern" is deprecated, '
+          \ .'please use "output" instead')
+    let a:config.output = remove(a:config, 'default-file-pattern')
   en
 endfun
 
-fun! s:set_extension(path)
-  if !empty(fnamemodify(a:path, ':e'))
-    return a:path
-  el
-    return a:path.'.png'
-  en
+" Info: Overrides user a:config with command-line a:flags
+fun! s:override(config, flags)
+  for [key, val] in items(a:flags)
+    let a:config[key] = val
+  endfor
 endfun
 
-fun! s:cmd_file_pattern(path, flags)
-  let path = g:silicon['default-file-pattern']
-  let path = substitute(path, '{time:\(.\{-}\)}', {match -> strftime(match[1])}, 'g')
-  let path = substitute(path, '{file:\(.\{-}\)}', {match -> expand(match[1])}, 'g')
+" Info: Expands values in the user a:config
+fun! s:expand(config)
+  call map(a:config, "type(v:val) == v:t_func? call(v:val, []) : v:val")
+  let a:config.output = simplify(s:expand_path(a:config.output))
+endfun
+
+" Info: Expands a a:path variable
+" e.g. ~/images/silicon-{time:%Y-%m-%d-%H%M%S}.png
+" into ~/images/silicon-2019-08-10-164233.png
+fun! s:expand_path(path)
+  let path = substitute(a:path,
+        \ '\v\{time:(.{-})\}', '\=strftime(submatch(1))', 'g')
+  let path = substitute(path,
+        \ '\v\{file:(.{-})\}', '\=expand(submatch(1))', 'g')
   let path = fnamemodify(path, ':p')
-  return path
-endfun
-
-fun! s:cmd_output_path(path, flags)
-  let realpath = expand(a:path)
-  if isdirectory(realpath)                     " /path/to/
-    let filename = expand('%:t:r')
-    let date = strftime('%Y-%m-%d_%H:%M:%S')
-    if !empty(filename)                        " Named source file
-      return realpath.'/'.filename.'_'.date
-    el                                         " Unnamed source file
-      return realpath.'/silicon_'.date
-    en
+  if isdirectory(path)
+    return path.'/'.s:new_filename()
+  elseif empty(fnamemodify(a:path, ':e'))
+    return path.'.png'
   el
-    return realpath                            " /path/to/img.png
+    return path
   en
 endfun
 
+" Info: Generates a filename
+fun! s:new_filename()
+  let file = expand('%:t:r')
+  let date = strftime('%Y-%m-%d_%H:%M:%S')
+  return (empty(file)? 'silicon' : file).'_'.date.'.png'
+endfun
+
+" Info: Checks for binary installation, and inconsistencies between the user
+" a:config and internal a:spec
+fun! s:validate(binary, spec, config)
+  let errors = []
+  if executable(a:binary) != 1
+    let errors += ['vim-'.a:binary.' requires `'.a:binary.'` to be '
+          \ .'installed and added to the $PATH. Please refer to the '
+          \ .'installation instructions in the README.md.']
+  en
+  for [key, val] in items(a:config)
+    if !has_key(a:spec, key)
+      let errors += ['Unexpected key in g:'.a:binary.': '.string(key)]
+    el
+      let [found, expected] = [type(val), a:spec[key][s:type]]
+      if found != expected && found != v:t_func
+        let errors += ['Type mismatch in g:'.a:binary.' for key "'.key.'"'
+              \ .': found `'.s:typename[found].'`'
+              \ .', expected `'.s:typename[expected].'`'
+              \ .', e.g. '.string(a:spec[key][s:default])]
+      en
+    en
+  endfor
+  return errors
+endfun
+
+" -------------------------- Infer values for flags --------------------------
+
+" Info: Infer the --output flag
+fun! s:infer_output()
+  return getcwd().'/'.s:new_filename()
+endfun
+
+" Info: Infer the --language flag
 fun! s:infer_language()
   if !empty(&ft)
     return &ft
@@ -216,93 +189,217 @@ fun! s:infer_language()
   en
 endfun
 
-fun! s:cmd_language(path, flags)
-  return ['--language', get(a:flags, 'language', s:infer_language())]
+fun! s:os()
+  return 'Darwin'
 endfun
 
-fun! s:cmd_config(path, flags)
+" Info: Infer the --to-clipboard flag
+fun! s:infer_clipboard()
+  return !empty(executable('xclip')) || s:os() ==# 'Darwin'? v:true : v:false
+endfun
+
+" ----------------------------- Command builder ------------------------------
+
+let s:cached_input = []
+let s:cached_output = v:null
+
+fun! s:cmd(binary, args, config, spec)
+  if s:cached_input != [a:args, a:config]
+    let s:cached_input = [a:args, a:config]
+    let s:cached_output = s:create_cmd(a:binary, a:args, a:config, a:spec)
+  en
+  return s:cached_output
+endfun
+
+" Info: Build a command
+fun! s:create_cmd(binary, args, config, spec)
+  let s:cached_input = [a:args, a:config]
+  let [path, flags, errors] = s:entered_flags(a:args, a:spec)
+  if !empty(errors)
+    throw s:format_errors(errors)
+  en
+  let flags.output = path
+  let config = deepcopy(a:config)
+  call s:override(config, flags)
+  call s:expand(config)
+  let errors = s:validate(a:binary, a:spec, config)
+  if !empty(errors)
+    throw s:format_errors(errors)
+  en
+  return [[a:binary] + s:cmd_flags(a:spec, config), config.output]
+endfun
+
+" Info: Converts a:config parameters into flags
+fun! s:cmd_flags(spec, config)
   let flags = []
-  for [key, val] in items(g:silicon)
-    let val = get(a:flags, key, val) " Override
-    if s:silicon[key][s:is_flag]
-      if type(val) == v:t_bool
-        if val == v:false
-          let flags += ['--no-'.key]
-        en
-      el
-        let flags += ['--'.key, val]
+  for [key, val] in items(a:config)
+    let type = type(val)
+    if type == v:t_bool
+      let Default = a:spec[key][s:default]
+      if (Default == v:false || type(Default) == v:t_func) && val == v:true
+        let flags += ['--'.key] " Enable, e.g. --to-clipboard
+      elseif Default == v:true && val == v:false
+        let flags += ['--no-'.key] " Disable, e.g. --no-window-controls
       en
+    el
+      let flags += ['--'.key, type == v:t_string? string(val) : val] " Set
     en
   endfor
   return flags
 endfun
 
+" ======================== Plugin specific functions =========================
+
+" --------------------------- Completion functions ---------------------------
+
+" Info: Theme completions
+fun! s:complete_themes(key, val)
+	return filter(systemlist('silicon --list-themes'), "v:val =~? '^'.a:val")
+endfun
+
+" Info: Font completions
+fun! s:complete_fonts(key, val)
+  return map(filter(systemlist('fc-list : family'), "v:val =~? '^'.a:val"),
+        \ 'escape(v:val, " ")')
+endfun
+
+" Info: Bool completions
+fun! s:complete_bools(key, val)
+  return filter([v:true, v:false], "v:val =~? '^'.a:val")
+endfun
+
+" Info: Language completions
+fun! s:complete_languages(key, val)
+  return getcompletion(a:val, 'filetype')
+endfun
+
+" Info: Output path completions
+fun! s:complete_outputs(key, val)
+  return getcompletion(a:val, 'dir')
+endfun
+
+" Info: Default completion function
+fun! s:complete_defaults(key, val)
+  let current = get(g:silicon, a:key, '')
+  let default = s:silicon[a:key][s:default]
+  let completions = current is default? [current] : [current, default]
+  return filter(completions, "v:val =~? '^'.a:val")
+endfun
+
+const s:themes    = function('s:complete_themes')
+const s:fonts     = function('s:complete_fonts')
+const s:bools     = function('s:complete_bools')
+const s:languages = function('s:complete_languages')
+const s:defaults  = function('s:complete_defaults')
+const s:outputs   = function('s:complete_outputs')
+
+" ---------------------- Internal config specification -----------------------
+
+const [s:type, s:default, s:compfun] = range(0, 2) " Column labels
+const s:silicon = {
+      \   'theme':              [ v:t_string,                     'Dracula',    s:themes ],
+      \   'font':               [ v:t_string,                        'Hack',     s:fonts ],
+      \   'background':         [ v:t_string,                     '#AAAAFF',  s:defaults ],
+      \   'shadow-color':       [ v:t_string,                     '#555555',  s:defaults ],
+      \   'line-pad':           [ v:t_number,                             2,  s:defaults ],
+      \   'pad-horiz':          [ v:t_number,                            80,  s:defaults ],
+      \   'pad-vert':           [ v:t_number,                           100,  s:defaults ],
+      \   'shadow-blur-radius': [ v:t_number,                             0,  s:defaults ],
+      \   'shadow-offset-x':    [ v:t_number,                             0,  s:defaults ],
+      \   'shadow-offset-y':    [ v:t_number,                             0,  s:defaults ],
+      \   'line-number':        [   v:t_bool,                        v:true,     s:bools ],
+      \   'round-corner':       [   v:t_bool,                        v:true,     s:bools ],
+      \   'window-controls':    [   v:t_bool,                        v:true,     s:bools ],
+      \   'to-clipboard':       [   v:t_bool, function('s:infer_clipboard'),     s:bools ],
+      \   'language':           [ v:t_string,  function('s:infer_language'), s:languages ],
+      \   'output':             [ v:t_string,    function('s:infer_output'),   s:outputs ],
+      \ }
+
+call s:configure('g:silicon', s:silicon)
+call s:deprecate(g:silicon)
+
+" =============================== External API ===============================
+
+" Info: Generates an image of code which represents lines a:line1 to a:line2
+" of the current buffer
 fun! silicon#generate(line1, line2, ...)
-  try
+"   try
     if mode() != 'n' && visualmode() != 'V'
       throw 'Command can only be called from Normal or Visual Line mode.'
     en
-    call s:validate(g:silicon, s:silicon)
-    let [path, flags] = s:entered_flags(a:000)
-    let cmd = s:cmd(path, flags)
+    let [cmd, path] = s:cmd('silicon', a:000, g:silicon, s:silicon)
     let lines = join(getline(a:line1, a:line2), "\n")
-    echomsg string(cmd)
-    call s:dispatch(cmd, lines)
-    echomsg '[Silicon - Success]: Image Generated'
-  catch
-    let v:errmsg = '[Silicon - Error]: '.v:exception
-    echohl ErrorMsg | echomsg v:errmsg | echohl None
-  endtry
+    let @+ = 'echo '.string(lines).' | '.join(cmd)
+    call s:run(cmd, lines)
+    echom '[Silicon - Success]: Image Generated to '.path
+"   catch
+"     call s:print_error(v:exception)
+"   endtry
 endfun
 
+" Info: Generates an image of code which represents the current buffer with
+" a:line1 to a:line2 highlighted
 fun! silicon#generate_highlighted(line1, line2, ...)
   try
     if visualmode() != 'V'
       throw 'Command can only be called from Visual Line mode.'
     en
-    call s:validate(g:silicon, s:silicon)
-    let [path, flags] = s:entered_flags(a:000)
-    let cmd = s:cmd(path, flags) + ['--highlight-lines', a:line1.'-'.a:line2]
+    let [cmd, path] = s:cmd('silicon', a:000, g:silicon, s:silicon)
+    let cmd += ['--highlight-lines', a:line1.'-'.a:line2]
     let lines = join(getline('1', '$'), "\n")
-    call s:dispatch(cmd, lines)
-    echomsg '[Silicon - Success]: Highlighted Image Generated'
+    call s:run(cmd, lines)
+    echom '[Silicon - Success]: Image Generated to '.path
   catch
-    let v:errmsg = '[Silicon - Error]: '.v:exception
-    echohl ErrorMsg | echomsg v:errmsg | echohl None
+    call s:print_error(v:exception)
   endtry
 endfun
 
-" Completions
+" =============================== Completions ================================
 
-" All possible flags that can be completed
-fun s:all_flags()
-  let all_flags = {}
-  for [key, val] in items(s:silicon)
-    let all_flags[key] = val['default']
-  endfor
-  let all_flags.language = s:infer_language()
+" Info: Returns all flags that can be completed
+fun s:all_flags(spec)
+  let all_flags = map(deepcopy(a:spec), "v:val[s:default]")
+  call remove(all_flags, 'output') " Output is treated differently
   return all_flags
 endfun
 
-" Current flags that have been completed
-fun! s:entered_flags(args)
-  let entered_flags = {}
-  let entered_path = ''
-  for arg in a:args
-    let matches = matchlist(arg, '\v^--([a-z\-]+)\=(.+)$')
-    if !empty(matches)
-      let [flag, val] = matches[1:2]
-      let entered_flags[flag] = val
-    elseif arg !~ '^-'
-      let entered_path = arg
-    en
-  endfor
-  return [entered_path, entered_flags]
+fun! s:parse_val(val)
+  return  a:val == 'true'? v:true :
+        \ a:val == 'false'? v:false :
+        \ a:val =~ '\v^[[:digit:]]+$'? str2nr(a:val) :
+        \ a:val
 endfun
 
-" Remaining flags to-be completed
+" Info: Returns current path and flags that have been completed, and any
+" kind of errors that might have occurred
+fun! s:entered_flags(args, spec)
+  let [entered_path, entered_flags, errors] = ['', {}, []]
+  for arg in a:args
+    let matches = matchlist(arg, '\v^--([[:lower:]\-]+)\=(.+)$')
+    if !empty(matches)
+      let [key, val] = matches[1:2]
+      if has_key(a:spec, key)
+        let entered_flags[key] = s:parse_val(val)
+      el
+        let errors += ['Undefined command-line flag: '.string('--'.key)]
+      en
+    elseif arg !~ '^-'
+      if empty(entered_path)
+        let entered_path = arg
+      el
+        let errors += ['Multiple output paths specified on command-line: '
+              \ .string(entered_path).' and '.string(arg)]
+      en
+    el
+      let errors += ['Failed to parse command-line argument: '.string(arg)]
+    en
+  endfor
+  return [entered_path, entered_flags, errors]
+endfun
+
+" Info: Returns remaining flags to-be completed
 fun! s:remaining_flags(all_flags, entered_flags)
-  let remaining_flags = copy(a:all_flags)
+  let remaining_flags = deepcopy(a:all_flags)
   for entered_flag in keys(a:entered_flags)
     if has_key(remaining_flags, entered_flag)
       call remove(remaining_flags, entered_flag)
@@ -311,29 +408,39 @@ fun! s:remaining_flags(all_flags, entered_flags)
   return remaining_flags
 endfun
 
+" Info: Completion function for :Silicon and :SiliconHighlight that completes:
+" 1. Output paths e.g. :Silicon foo/bar/baz
+" 2. Flag keys    e.g. :Silicon foo/bar/baz --flag
+" 3. Flag =       e.g. :Silicon foo/bar/baz --flag=
+" 4. Flag values  e.g. :Silicon foo/bar/baz --flag=123
+" Only remaining, i.e. un-entered, output paths/flags are completed
 fun! silicon#complete(arglead, cmdline, cursorpos)
-  let all_flags = s:all_flags()
-  let [entered_path, entered_flags] = s:entered_flags(split(a:cmdline)[1:])
+  let args = split(a:cmdline)[1:]
+  let all_flags = s:all_flags(s:silicon)
+  let [entered_path, entered_flags, _] = s:entered_flags(args, s:silicon)
   let remaining_flags = s:remaining_flags(all_flags, entered_flags)
-  let matches = matchlist(a:arglead, '\v^--([a-z\-]+)(\=(.+)?)?$')
+  let matches = matchlist(a:arglead, '\v^--([[:lower:]\-]+)(\=(.+)?)?$')
   if !empty(matches)
     let [key, eq, val] = matches[1:3]
     if !empty(eq)
       if has_key(s:silicon, key)
         " Complete value
-        return map(s:silicon[key][s:completions](key, val), "'--'.key.'='.v:val")
+        return map(s:silicon[key][s:compfun](key, val), "'--'.key.'='.v:val")
       el
         return []
       en
     el
       " Complete key
-      return sort(values(map(filter(remaining_flags, "v:key =~ key"), "'--'.v:key")))
+      let completions = values(map(filter(remaining_flags,
+            \ "v:key =~? '^'.key"), "'--'.v:key"))
+      return len(completions) == 1? [completions[0].'='] : sort(completions)
     en
   elseif a:arglead == entered_path
     " Complete path
-    return getcompletion(a:arglead, 'dir')
+    return s:silicon.output[s:compfun]('output', entered_path)
   el
     " Complete remaining flags
-    return sort(values(map(remaining_flags, "'--'.v:key")))
+    let completions = values(map(remaining_flags, "'--'.v:key"))
+    return len(completions) == 1? [completions[0].'='] : sort(completions)
   en
 endfun
