@@ -76,6 +76,13 @@ To get the list of available themes, you can run this in the terminal:
 silicon --list-themes
 ```
 
+Silicon internally uses [`bat`'s](https://github.com/sharkdp/bat) themes and syntaxes. To get the list of supported languages, you could:
+
+```sh
+cargo install bat
+bat --list-languages
+```
+
 For more details about options, see https://github.com/Aloxaf/silicon.
 
 # Credits
