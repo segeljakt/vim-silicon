@@ -230,7 +230,7 @@ fun! s:args(spec, config)
         let args += ['--no-'.key] " Disable, e.g. --no-window-controls
       en
     el
-      let args += ['--'.key, type == v:t_string? string(val) : val] " Set
+      let args += ['--'.key, val] " Set, e.g. --line-pad 2
     en
   endfor
   return args
