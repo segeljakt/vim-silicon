@@ -214,26 +214,26 @@ fun! s:cmd(binary, args, config, spec)
   if !empty(errors)
     throw s:format_errors(errors)
   en
-  return [[a:binary] + s:cmd_flags(a:spec, config), config.output]
+  return [[a:binary] + s:args(a:spec, config), config.output]
 endfun
 
-" Info: Converts a:config parameters into flags
-fun! s:cmd_flags(spec, config)
-  let flags = []
+" Info: Converts a:config parameters into arguments
+fun! s:args(spec, config)
+  let args = []
   for [key, val] in items(a:config)
     let type = type(val)
     if type == v:t_bool
       let Default = a:spec[key][s:default]
       if (Default == v:false || type(Default) == v:t_func) && val == v:true
-        let flags += ['--'.key] " Enable, e.g. --to-clipboard
+        let args += ['--'.key] " Enable, e.g. --to-clipboard
       elseif Default == v:true && val == v:false
-        let flags += ['--no-'.key] " Disable, e.g. --no-window-controls
+        let args += ['--no-'.key] " Disable, e.g. --no-window-controls
       en
     el
-      let flags += ['--'.key, type == v:t_string? string(val) : val] " Set
+      let args += ['--'.key, type == v:t_string? string(val) : val] " Set
     en
   endfor
-  return flags
+  return args
 endfun
 
 " ======================== Plugin specific functions =========================
