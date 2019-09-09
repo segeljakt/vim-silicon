@@ -190,11 +190,11 @@ fun! s:infer_language()
 endfun
 
 fun! s:os()
-  return 'Darwin'
+  return '???'
 endfun
 
 " Info: Infer the --to-clipboard flag
-fun! s:infer_clipboard()
+fun! s:infer_to_clipboard()
   return !empty(executable('xclip')) || s:os() ==# 'Darwin'? v:true : v:false
 endfun
 
@@ -257,12 +257,12 @@ fun! s:complete_bools(key, val)
 endfun
 
 " Info: Language completions
-fun! s:complete_languages(key, val)
+fun! s:complete_filetypes(key, val)
   return getcompletion(a:val, 'filetype')
 endfun
 
-" Info: Output path completions
-fun! s:complete_outputs(key, val)
+" Info: Path completions
+fun! s:complete_paths(key, val)
   return getcompletion(a:val, 'dir')
 endfun
 
@@ -274,33 +274,37 @@ fun! s:complete_defaults(key, val)
   return filter(completions, "v:val =~? '^'.a:val")
 endfun
 
-const s:themes    = function('s:complete_themes')
-const s:fonts     = function('s:complete_fonts')
-const s:bools     = function('s:complete_bools')
-const s:languages = function('s:complete_languages')
-const s:defaults  = function('s:complete_defaults')
-const s:outputs   = function('s:complete_outputs')
+const s:themes       = function('s:complete_themes')
+const s:fonts        = function('s:complete_fonts')
+const s:bools        = function('s:complete_bools')
+const s:filetypes    = function('s:complete_filetypes')
+const s:defaults     = function('s:complete_defaults')
+const s:paths        = function('s:complete_paths')
+
+const s:to_clipboard = function('s:infer_to_clipboard')
+const s:language     = function('s:infer_language')
+const s:output       = function('s:infer_output')
 
 " ---------------------- Internal config specification -----------------------
 
 const [s:type, s:default, s:compfun] = range(0, 2) " Column labels
 const s:silicon = {
-      \   'theme':              [ v:t_string,                     'Dracula',    s:themes ],
-      \   'font':               [ v:t_string,                        'Hack',     s:fonts ],
-      \   'background':         [ v:t_string,                     '#AAAAFF',  s:defaults ],
-      \   'shadow-color':       [ v:t_string,                     '#555555',  s:defaults ],
-      \   'line-pad':           [ v:t_number,                             2,  s:defaults ],
-      \   'pad-horiz':          [ v:t_number,                            80,  s:defaults ],
-      \   'pad-vert':           [ v:t_number,                           100,  s:defaults ],
-      \   'shadow-blur-radius': [ v:t_number,                             0,  s:defaults ],
-      \   'shadow-offset-x':    [ v:t_number,                             0,  s:defaults ],
-      \   'shadow-offset-y':    [ v:t_number,                             0,  s:defaults ],
-      \   'line-number':        [   v:t_bool,                        v:true,     s:bools ],
-      \   'round-corner':       [   v:t_bool,                        v:true,     s:bools ],
-      \   'window-controls':    [   v:t_bool,                        v:true,     s:bools ],
-      \   'to-clipboard':       [   v:t_bool, function('s:infer_clipboard'),     s:bools ],
-      \   'language':           [ v:t_string,  function('s:infer_language'), s:languages ],
-      \   'output':             [ v:t_string,    function('s:infer_output'),   s:outputs ],
+      \   'theme':              [ v:t_string,      'Dracula',    s:themes ],
+      \   'font':               [ v:t_string,         'Hack',     s:fonts ],
+      \   'background':         [ v:t_string,      '#AAAAFF',  s:defaults ],
+      \   'shadow-color':       [ v:t_string,      '#555555',  s:defaults ],
+      \   'line-pad':           [ v:t_number,              2,  s:defaults ],
+      \   'pad-horiz':          [ v:t_number,             80,  s:defaults ],
+      \   'pad-vert':           [ v:t_number,            100,  s:defaults ],
+      \   'shadow-blur-radius': [ v:t_number,              0,  s:defaults ],
+      \   'shadow-offset-x':    [ v:t_number,              0,  s:defaults ],
+      \   'shadow-offset-y':    [ v:t_number,              0,  s:defaults ],
+      \   'line-number':        [   v:t_bool,         v:true,     s:bools ],
+      \   'round-corner':       [   v:t_bool,         v:true,     s:bools ],
+      \   'window-controls':    [   v:t_bool,         v:true,     s:bools ],
+      \   'to-clipboard':       [   v:t_bool, s:to_clipboard,     s:bools ],
+      \   'language':           [ v:t_string,     s:language, s:filetypes ],
+      \   'output':             [ v:t_string,       s:output,     s:paths ],
       \ }
 
 call s:configure('g:silicon', s:silicon)
@@ -311,18 +315,17 @@ call s:deprecate(g:silicon)
 " Info: Generates an image of code which represents lines a:line1 to a:line2
 " of the current buffer
 fun! silicon#generate(line1, line2, ...)
-"   try
+  try
     if mode() != 'n' && visualmode() != 'V'
       throw 'Command can only be called from Normal or Visual Line mode.'
     en
     let [cmd, path] = s:cmd('silicon', a:000, g:silicon, s:silicon)
     let lines = join(getline(a:line1, a:line2), "\n")
-    let @+ = 'echo '.string(lines).' | '.join(cmd)
     call s:run(cmd, lines)
     echom '[Silicon - Success]: Image Generated to '.path
-"   catch
-"     call s:print_error(v:exception)
-"   endtry
+  catch
+    call s:print_error(v:exception)
+  endtry
 endfun
 
 " Info: Generates an image of code which represents the current buffer with
