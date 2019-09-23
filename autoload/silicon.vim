@@ -20,6 +20,19 @@ const s:typename = [
       \ 'null',
       \ ]
 
+fun! s:nr2bool(number)
+  return  a:number == 0? v:false :
+        \ a:number == 1? v:true :
+        \ a:number
+endfun
+
+fun! s:parse_expr(str)
+  return  a:str == 'true'? v:true :
+        \ a:str == 'false'? v:false :
+        \ a:str =~ '\v^[[:digit:]]+$'? str2nr(a:val) :
+        \ a:str
+endfun
+
 " ------------------------- Vim/Neovim Compatibility -------------------------
 
 " Info: Starts a:cmd as a job and passes a:data as input to it
@@ -113,8 +126,11 @@ fun! s:override(config, flags)
 endfun
 
 " Info: Expands values in the user a:config
-fun! s:expand(config)
+fun! s:expand(config, spec)
   call map(a:config, "type(v:val) == v:t_func? call(v:val, []) : v:val")
+  call map(a:config,
+        \ "a:spec[v:key][s:type] == v:t_bool && type(v:val) == v:t_number?"
+        \ ."nr2bool(v:val) : v:val")
   let a:config.output = simplify(s:expand_path(a:config.output))
 endfun
 
@@ -189,13 +205,13 @@ fun! s:infer_language()
   en
 endfun
 
-fun! s:os()
-  return '???'
-endfun
+let s:os = has('win64') || has('win32') || has('win16')? 'Windows' :
+      \ has('mac') || has('macunix') || has('gui_mac')? 'Darwin' :
+      \ substitute(system('uname'), '\n', '', '')
 
 " Info: Infer the --to-clipboard flag
 fun! s:infer_to_clipboard()
-  return !empty(executable('xclip')) || s:os() ==# 'Darwin'? v:true : v:false
+  return !empty(executable('xclip')) || s:os ==# 'Darwin'
 endfun
 
 " ----------------------------- Command builder ------------------------------
@@ -209,7 +225,7 @@ fun! s:cmd(binary, args, config, spec)
   let flags.output = path
   let config = copy(a:config)
   call s:override(config, flags)
-  call s:expand(config)
+  call s:expand(config, a:spec)
   let errors = s:validate(a:binary, a:spec, config)
   if !empty(errors)
     throw s:format_errors(errors)
@@ -354,13 +370,6 @@ fun s:all_flags(spec)
   return all_flags
 endfun
 
-fun! s:parse_val(val)
-  return  a:val == 'true'? v:true :
-        \ a:val == 'false'? v:false :
-        \ a:val =~ '\v^[[:digit:]]+$'? str2nr(a:val) :
-        \ a:val
-endfun
-
 " Info: Returns current path and flags that have been completed, and any
 " kind of errors that might have occurred
 fun! s:entered_flags(args, spec)
@@ -370,7 +379,7 @@ fun! s:entered_flags(args, spec)
     if !empty(matches)
       let [key, val] = matches[1:2]
       if has_key(a:spec, key)
-        let entered_flags[key] = s:parse_val(val)
+        let entered_flags[key] = s:parse_expr(val)
       el
         let errors += ['Undefined command-line flag: '.string('--'.key)]
       en
