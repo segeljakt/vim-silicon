@@ -29,7 +29,7 @@ Plug 'segeljakt/vim-silicon'
 
 # Commands
 
-The available commands are `Silicon`, and `SiliconHighlight`:
+This plugin provides a single command `Silicon`:
 
 ```vim
 " Generate an image of the current buffer and write it to /path/to/output.png
@@ -42,7 +42,7 @@ The available commands are `Silicon`, and `SiliconHighlight`:
 :'<,'>Silicon /path/to/output.png
 
 " Generate an image of the current buffer, with the current visual line selection highlighted.
-:'<,'>SiliconHighlight /path/to/output.png
+:'<,'>Silicon! /path/to/output.png
 ```
 
 If no `/path/to/output.png` is specified, then the generated image is copied to clipboard. However, this feature is only supported on Linux at the moment.
@@ -53,21 +53,27 @@ This is the default configuration:
 
 ```vim
 let g:silicon = {
-      \ 'theme':              'Dracula',
-      \ 'font':                  'Hack',
-      \ 'background':         '#aaaaff',
-      \ 'shadow-color':       '#555555',
-      \ 'line-pad':                   2,
-      \ 'pad-horiz':                 80,
-      \ 'pad-vert':                 100,
-      \ 'shadow-blur-radius':         0,
-      \ 'shadow-offset-x':            0,
-      \ 'shadow-offset-y':            0,
-      \ 'line-number':           v:true,
-      \ 'round-corner':          v:true,
-      \ 'window-controls':       v:true,
-      \ 'default-file-pattern'       '',
+      \   'theme':              'Dracula',
+      \   'font':                  'Hack',
+      \   'background':         '#AAAAFF',
+      \   'shadow-color':       '#555555',
+      \   'line-pad':                   2,
+      \   'pad-horiz':                 80,
+      \   'pad-vert':                 100,
+      \   'shadow-blur-radius':         0,
+      \   'shadow-offset-x':            0,
+      \   'shadow-offset-y':            0,
+      \   'line-number':           v:true,
+      \   'round-corner':          v:true,
+      \   'window-controls':       v:true,
       \ }
+```
+
+Images are by default saved to the working directory with a unique filename,
+you can change this filepath by setting:
+
+```vim
+let g:silicon['output'] = '~/images/silicon-{time:%Y-%m-%d-%H%M%S}.png'
 ```
 
 To get the list of available themes, you can run this in the terminal:

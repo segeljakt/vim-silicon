@@ -38,7 +38,6 @@ to install silicon, which is most easily done using cargo:
 COMMANDS                                                *vim-silicon-commands*
 
     1. Silicon ........................................... |:Silicon|
-    2. SiliconHighlight .................................. |:SiliconHighlight|
 
 ------------------------------------------------------------------------------
                                                                     *:Silicon*
@@ -59,6 +58,10 @@ Examples:
     " Generate an image of the current visual line selection
     " and write it to /path/to/output.png
     :'<,'>Silicon /path/to/output.png
+
+    " Generate an image of the current buffer, with the current visual line
+    " selection highlighted.
+    :'<,'>Silicon! /path/to/output.png
 >
 
 ------------------------------------------------------------------------------
@@ -70,8 +73,8 @@ visual line selection highlighted.
 ==============================================================================
 OPTIONS                                                  *vim-silicon-options*
 
-    g:silicon ............................... |g:silicon|
-    g:silicon['default-file-name'] .......... |g:silicon['default-file-name']|
+    g:silicon .......................................... |g:silicon|
+    g:silicon['output'] ................................ |g:silicon['output']|
 
 ------------------------------------------------------------------------------
                                                                    *g:silicon*
@@ -79,20 +82,19 @@ Type: dict ~
 Default: ~
 >
     let g:silicon = {
-          \ 'theme':              'Dracula',
-          \ 'font':                  'Hack',
-          \ 'background':         '#aaaaff',
-          \ 'shadow-color':       '#555555',
-          \ 'line-pad':                   2,
-          \ 'pad-horiz':                 80,
-          \ 'pad-vert':                 100,
-          \ 'shadow-blur-radius':         0,
-          \ 'shadow-offset-x':            0,
-          \ 'shadow-offset-y':            0,
-          \ 'line-number':           v:true,
-          \ 'round-corner':          v:true,
-          \ 'window-controls':       v:true,
-          \ 'default-file-pattern'       '',
+          \   'theme':              'Dracula',
+          \   'font':                  'Hack',
+          \   'background':         '#AAAAFF',
+          \   'shadow-color':       '#555555',
+          \   'line-pad':                   2,
+          \   'pad-horiz':                 80,
+          \   'pad-vert':                 100,
+          \   'shadow-blur-radius':         0,
+          \   'shadow-offset-x':            0,
+          \   'shadow-offset-y':            0,
+          \   'line-number':           v:true,
+          \   'round-corner':          v:true,
+          \   'window-controls':       v:true,
           \ }
 >
 
@@ -105,7 +107,7 @@ To get the list of available themes, you can run this in the terminal:
 For more details about options, please see https://github.com/Aloxaf/silicon.
 
 ------------------------------------------------------------------------------
-                                           *g:silicon['default-file-pattern']*
+                                                         *g:silicon['output']*
 
 If set to a non-empty string, it'll be used as the default filename when
 |:Silicon| is called with no arguments. Note that this means you could no
@@ -115,8 +117,7 @@ It's possible to embed a timestamp into the filename by using the
 `{time:<strftime() specifier>}` format. As an example:
 
 >
-    let g:silicon['default-file-pattern'] =
-            \ '~/images/silicon-{time:%Y-%m-%d-%H%M%S}.png'
+    let g:silicon['output'] = '~/images/silicon-{time:%Y-%m-%d-%H%M%S}.png'
 >
 
 This might result in the file: `~/images/silicon-2019-08-10-164233.png`.

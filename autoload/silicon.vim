@@ -1,7 +1,7 @@
 " vim: et sw=2 sts=2
 
 " Plugin:      https://github.com/segeljakt/vim-silicon
-" Description: Create beautiful images of your source code.
+" Description: Create beautiful images of source code.
 " Maintainer:  Klas Segeljakt <http://github.com/segeljakt>
 
 if exists('s:autoloaded') | finish | el | let s:autoloaded = v:true | en
@@ -20,16 +20,18 @@ const s:typename = [
       \ 'null',
       \ ]
 
+" Info: Converts a number into a boolean
 fun! s:nr2bool(number)
   return  a:number == 0? v:false :
         \ a:number == 1? v:true :
         \ a:number
 endfun
 
+" Info: Parses a string into a vim-expression
 fun! s:parse_expr(str)
   return  a:str == 'true'? v:true :
         \ a:str == 'false'? v:false :
-        \ a:str =~ '\v^[[:digit:]]+$'? str2nr(a:val) :
+        \ a:str =~ '\v^[[:digit:]]+$'? str2nr(a:str) :
         \ a:str
 endfun
 
@@ -52,23 +54,25 @@ en
 
 " Info: Callback for job
 fun! s:handler(channel_id, data, name)
-"   if a:name == 'stdout'
-"     call s:print_info('stdout: '.join(a:data))
-"   elseif a:name == 'stderr'
-"     call s:print_info('stderr: '.join(a:data))
-"   elseif a:name == 'exit'
-"     call s:print_info('exited')
-"   elseif a:name == 'data'
-"     call s:print_info('???')
-"   en
+  if s:debug()
+    if a:name == 'stdout'
+      call s:print_info('stdout: '.join(a:data))
+    elseif a:name == 'stderr'
+      call s:print_info('stderr: '.join(a:data))
+    elseif a:name == 'exit'
+      call s:print_info('exited')
+    elseif a:name == 'data'
+      call s:print_info('data')
+    en
+  en
 endfun
 
-const s:job_options = {}
-"       \   'on_stdout': function('s:handler'),
-"       \   'on_stderr': function('s:handler'),
-"       \   'on_exit':   function('s:handler'),
-"       \   'on_data':   function('s:handler'),
-"       \ }
+const s:job_options = {
+  \   'on_stdout': function('s:handler'),
+  \   'on_stderr': function('s:handler'),
+  \   'on_exit':   function('s:handler'),
+  \   'on_data':   function('s:handler'),
+  \ }
 
 " ------------------------------ Error handling ------------------------------
 
@@ -91,6 +95,11 @@ endfun
 " Info: Formats a list of errors
 fun! s:format_errors(errors)
   return "\n  - " . join(a:errors, "\n  - ")
+endfun
+
+" Info: Returns true if debug mode is enabled
+fun! s:debug()
+  return get(g:, 'silicon#debug', v:false)
 endfun
 
 " ----------------------------- Configuration ------------------------------
@@ -130,7 +139,7 @@ fun! s:expand(config, spec)
   call map(a:config, "type(v:val) == v:t_func? call(v:val, []) : v:val")
   call map(a:config,
         \ "a:spec[v:key][s:type] == v:t_bool && type(v:val) == v:t_number?"
-        \ ."nr2bool(v:val) : v:val")
+        \ ."s:nr2bool(v:val) : v:val")
   let a:config.output = simplify(s:expand_path(a:config.output))
 endfun
 
@@ -240,9 +249,9 @@ fun! s:args(spec, config)
     let type = type(val)
     if type == v:t_bool
       let Default = a:spec[key][s:default]
-      if (Default == v:false || type(Default) == v:t_func) && val == v:true
+      if val == v:true && (Default == v:false || type(Default) == v:t_func)
         let args += ['--'.key] " Enable, e.g. --to-clipboard
-      elseif Default == v:true && val == v:false
+      elseif val == v:false && Default == v:true
         let args += ['--no-'.key] " Disable, e.g. --no-window-controls
       en
     el
@@ -258,18 +267,18 @@ endfun
 
 " Info: Theme completions
 fun! s:complete_themes(key, val)
-	return filter(systemlist('silicon --list-themes'), "v:val =~? '^'.a:val")
+	return filter(systemlist('silicon --list-themes'), 'v:val =~? "^".a:val')
 endfun
 
 " Info: Font completions
 fun! s:complete_fonts(key, val)
-  return map(filter(systemlist('fc-list : family'), "v:val =~? '^'.a:val"),
+  return map(filter(systemlist('fc-list : family'), 'v:val =~? "^".a:val'),
         \ 'escape(v:val, " ")')
 endfun
 
 " Info: Bool completions
 fun! s:complete_bools(key, val)
-  return filter([v:true, v:false], "v:val =~? '^'.a:val")
+  return filter([v:true, v:false], 'v:val =~? "^".a:val')
 endfun
 
 " Info: Language completions
@@ -286,8 +295,8 @@ endfun
 fun! s:complete_defaults(key, val)
   let current = get(g:silicon, a:key, '')
   let default = s:silicon[a:key][s:default]
-  let completions = current is default? [current] : [current, default]
-  return filter(completions, "v:val =~? '^'.a:val")
+  let completions = (current == default)? [default] : [current, default]
+  return filter(completions, 'v:val =~? "^".a:val')
 endfun
 
 const s:themes       = function('s:complete_themes')
@@ -329,32 +338,29 @@ call s:deprecate(g:silicon)
 " =============================== External API ===============================
 
 " Info: Generates an image of code which represents lines a:line1 to a:line2
-" of the current buffer
-fun! silicon#generate(line1, line2, ...)
+" of the current buffer. If <bang> is supplied, then the generated image will
+" instead represent the current buffer with a:line1 to a:line2 highlighted.
+fun! silicon#generate(bang, line1, line2, ...)
   try
-    if mode() != 'n' && visualmode() != 'V'
-      throw 'Command can only be called from Normal or Visual Line mode.'
+    if !a:bang 
+      if mode() != 'n' && visualmode() != 'V'
+        throw 'Command can only be called from Normal or Visual Line mode.'
+      en
+      let suffix = []
+      let lines = join(getline(a:line1, a:line2), "\n")
+    el
+      if visualmode() != 'V'
+        throw 'Command can only be called from Visual Line mode.'
+      en
+      let suffix = ['--highlight-lines', a:line1.'-'.a:line2]
+      let lines = join(getline('1', '$'), "\n")
     en
     let [cmd, path] = s:cmd('silicon', a:000, g:silicon, s:silicon)
-    let lines = join(getline(a:line1, a:line2), "\n")
-    call s:run(cmd, lines)
-    echom '[Silicon - Success]: Image Generated to '.path
-  catch
-    call s:print_error(v:exception)
-  endtry
-endfun
-
-" Info: Generates an image of code which represents the current buffer with
-" a:line1 to a:line2 highlighted
-fun! silicon#generate_highlighted(line1, line2, ...)
-  try
-    if visualmode() != 'V'
-      throw 'Command can only be called from Visual Line mode.'
+    if s:debug()
+      echo cmd + suffix
+      echo lines
     en
-    let [cmd, path] = s:cmd('silicon', a:000, g:silicon, s:silicon)
-    let cmd += ['--highlight-lines', a:line1.'-'.a:line2]
-    let lines = join(getline('1', '$'), "\n")
-    call s:run(cmd, lines)
+    call s:run(cmd + suffix, lines)
     echom '[Silicon - Success]: Image Generated to '.path
   catch
     call s:print_error(v:exception)
@@ -379,7 +385,8 @@ fun! s:entered_flags(args, spec)
     if !empty(matches)
       let [key, val] = matches[1:2]
       if has_key(a:spec, key)
-        let entered_flags[key] = s:parse_expr(val)
+        let entered_flags[key] = (key == 'theme' || key == 'font')?
+              \ val : s:parse_expr(val)
       el
         let errors += ['Undefined command-line flag: '.string('--'.key)]
       en
@@ -408,7 +415,7 @@ fun! s:remaining_flags(all_flags, entered_flags)
   return remaining_flags
 endfun
 
-" Info: Completion function for :Silicon and :SiliconHighlight that completes:
+" Info: Completion function for :Silicon that completes:
 " 1. Output paths e.g. :Silicon foo/bar/baz
 " 2. Flag keys    e.g. :Silicon foo/bar/baz --flag
 " 3. Flag =       e.g. :Silicon foo/bar/baz --flag=
