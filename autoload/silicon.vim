@@ -56,22 +56,20 @@ en
 fun! s:handler(channel_id, data, name)
   if s:debug()
     if a:name == 'stdout'
-      call s:print_info('stdout: '.join(a:data))
-    elseif a:name == 'stderr'
-      call s:print_info('stderr: '.join(a:data))
+      call s:print_debug('stdout: '.join(a:data))
+    if a:name == 'stderr'
+      call s:print_debug('stderr: '.join(a:data))
     elseif a:name == 'exit'
-      call s:print_info('exited')
+      call s:print_debug('exited')
     elseif a:name == 'data'
-      call s:print_info('data')
+      call s:print_debug('data')
     en
   en
 endfun
 
 const s:job_options = {
-  \   'on_stdout': function('s:handler'),
   \   'on_stderr': function('s:handler'),
-  \   'on_exit':   function('s:handler'),
-  \   'on_data':   function('s:handler'),
+  \   'stderr_buffered': 1,
   \ }
 
 " ------------------------------ Error handling ------------------------------
@@ -88,8 +86,8 @@ fun! s:print_error(msg)
 endfun
 
 " Info: Prints a silent info message
-fun! s:print_info(msg)
-	echom '[Silicon - Info]: '.a:msg
+fun! s:print_debug(msg)
+	echom '[Silicon - Debug]: '.a:msg
 endfun
 
 " Info: Formats a list of errors
@@ -343,22 +341,27 @@ call s:deprecate(g:silicon)
 fun! silicon#generate(bang, line1, line2, ...)
   try
     if !a:bang 
-      if mode() != 'n' && visualmode() != 'V'
-        throw 'Command can only be called from Normal or Visual Line mode.'
-      en
-      let suffix = []
       let lines = join(getline(a:line1, a:line2), "\n")
+      let suffix = []
     el
-      if visualmode() != 'V'
-        throw 'Command can only be called from Visual Line mode.'
+      if a:line1 == 1 && a:line2 == line('$')
+        throw 'Specify a sub-range to highlight using Visual Line mode.'
       en
-      let suffix = ['--highlight-lines', a:line1.'-'.a:line2]
-      let lines = join(getline('1', '$'), "\n")
+      let [line1, line2] = [a:line1, a:line2]
+      if line2 == line('$')
+        let line2 -= 1
+        if line1 == line('$')
+          let line1 -= 1
+        en
+      en
+      let lines = join(getline(0, '$'), "\n")
+      let suffix = ['--highlight-lines', line1.'-'.line2]
     en
     let [cmd, path] = s:cmd('silicon', a:000, g:silicon, s:silicon)
     if s:debug()
-      echo cmd + suffix
-      echo lines
+      call s:print_debug(string(cmd + suffix))
+      call s:print_debug(string(lines))
+      let @y = string(cmd + suffix)
     en
     call s:run(cmd + suffix, lines)
     echom '[Silicon - Success]: Image Generated to '.path

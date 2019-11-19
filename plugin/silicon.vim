@@ -6,7 +6,7 @@
 
 com!
   \ -bang
-  \ -range
+  \ -range=%
   \ -nargs=*
   \ -complete=customlist,silicon#complete
   \ Silicon
