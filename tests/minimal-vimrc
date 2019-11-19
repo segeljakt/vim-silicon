@@ -1,0 +1,3 @@
+call plug#begin('~/.vim/plugged')
+Plug 'segeljakt/vim-silicon'
+call plug#end()
