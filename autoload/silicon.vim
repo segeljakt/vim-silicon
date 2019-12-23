@@ -298,7 +298,8 @@ fun! s:complete_defaults(key, val)
 endfun
 
 const s:themes       = function('s:complete_themes')
-const s:fonts        = function('s:complete_fonts')
+const s:fonts        = function(executable('fc-list')?
+      \ 's:complete_fonts':'s:complete_defaults')
 const s:bools        = function('s:complete_bools')
 const s:filetypes    = function('s:complete_filetypes')
 const s:defaults     = function('s:complete_defaults')
