@@ -54,7 +54,7 @@ en
 
 " Info: Callback for job
 fun! s:handler(channel_id, data, name)
-  if s:debug()
+  if s:debug_mode_enabled()
     if a:name == 'stdout'
       call s:print_debug('stdout: '.join(a:data))
     if a:name == 'stderr'
@@ -68,11 +68,16 @@ fun! s:handler(channel_id, data, name)
 endfun
 
 const s:job_options = {
-  \   'on_stderr': function('s:handler'),
-  \   'stderr_buffered': 1,
-  \ }
+      \   'on_stderr': function('s:handler'),
+      \   'stderr_buffered': 1,
+      \ }
 
 " ------------------------------ Error handling ------------------------------
+
+" Info: Prints a warning message
+fun! s:print_success(msg)
+  echom '[Silicon - Success]: '.a:msg
+endfun
 
 " Info: Prints a warning message
 fun! s:print_warning(msg)
@@ -96,7 +101,7 @@ fun! s:format_errors(errors)
 endfun
 
 " Info: Returns true if debug mode is enabled
-fun! s:debug()
+fun! s:debug_mode_enabled()
   return get(g:, 'silicon#debug', v:false)
 endfun
 
@@ -119,9 +124,11 @@ endfun
 " Info: Identifies and warns about deprecated features
 fun! s:deprecate(config)
   if has_key(a:config, 'default-file-pattern')
-    call s:print_warning('"default-file-pattern" is deprecated, '
-          \ .'please use "output" instead')
-    let a:config.output = remove(a:config, 'default-file-pattern')
+    if s:debug_mode_enabled()
+      call s:print_warning('"default-file-pattern" is deprecated, '
+            \ .'please use "output" instead')
+    en
+    let a:config['output'] = remove(a:config, 'default-file-pattern')
   en
 endfun
 
@@ -132,23 +139,21 @@ fun! s:override(config, flags)
   endfor
 endfun
 
-" Info: Expands values in the user a:config
+" Info: Expands values in the user a:config by calling functions and expanding paths
+" if functions return numbers (0 and 1) where booleans are expected, make a conversion
 fun! s:expand(config, spec)
   call map(a:config, "type(v:val) == v:t_func? call(v:val, []) : v:val")
-  call map(a:config,
-        \ "a:spec[v:key][s:type] == v:t_bool && type(v:val) == v:t_number?"
+  call map(a:config, "a:spec[v:key][s:type] == v:t_bool && type(v:val) == v:t_number?"
         \ ."s:nr2bool(v:val) : v:val")
-  let a:config.output = simplify(s:expand_path(a:config.output))
+  let a:config['output'] = simplify(s:expand_path(a:config['output']))
 endfun
 
 " Info: Expands a a:path variable
 " e.g. ~/images/silicon-{time:%Y-%m-%d-%H%M%S}.png
 " into ~/images/silicon-2019-08-10-164233.png
 fun! s:expand_path(path)
-  let path = substitute(a:path,
-        \ '\v\{time:(.{-})\}', '\=strftime(submatch(1))', 'g')
-  let path = substitute(path,
-        \ '\v\{file:(.{-})\}', '\=expand(submatch(1))', 'g')
+  let path = substitute(a:path, '\v\{time:(.{-})\}', '\=strftime(submatch(1))', 'g')
+  let path = substitute(path, '\v\{file:(.{-})\}', '\=expand(submatch(1))', 'g')
   let path = fnamemodify(path, ':p')
   if isdirectory(path)
     return path.'/'.s:new_filename()
@@ -212,7 +217,7 @@ fun! s:infer_language()
   en
 endfun
 
-let s:os = has('win64') || has('win32') || has('win16')? 'Windows' :
+const s:os = has('win64') || has('win32') || has('win16')? 'Windows' :
       \ has('mac') || has('macunix') || has('gui_mac')? 'Darwin' :
       \ substitute(system('uname'), '\n', '', '')
 
@@ -224,12 +229,12 @@ endfun
 " ----------------------------- Command builder ------------------------------
 
 " Info: Build a command
-fun! s:cmd(binary, args, config, spec)
+fun! s:build_cmd(binary, args, config, spec)
   let [path, flags, errors] = s:entered_flags(a:args, a:spec)
   if !empty(errors)
     throw s:format_errors(errors)
   en
-  let flags.output = path
+  let flags['output'] = path
   let config = copy(a:config)
   call s:override(config, flags)
   call s:expand(config, a:spec)
@@ -237,7 +242,7 @@ fun! s:cmd(binary, args, config, spec)
   if !empty(errors)
     throw s:format_errors(errors)
   en
-  return [[a:binary] + s:args(a:spec, config), config.output]
+  return [[a:binary] + s:args(a:spec, config), config]
 endfun
 
 " Info: Converts a:config parameters into arguments
@@ -334,13 +339,7 @@ const s:silicon = {
 call s:configure('g:silicon', s:silicon)
 call s:deprecate(g:silicon)
 
-" =============================== External API ===============================
-
-" Info: Generates an image of code which represents lines a:line1 to a:line2
-" of the current buffer. If <bang> is supplied, then the generated image will
-" instead represent the current buffer with a:line1 to a:line2 highlighted.
-fun! silicon#generate(bang, line1, line2, ...)
-  try
+fun! s:read_command_attributes(bang, line1, line2)
     if !a:bang 
       let lines = join(getline(a:line1, a:line2), "\n")
       let suffix = []
@@ -358,14 +357,30 @@ fun! silicon#generate(bang, line1, line2, ...)
       let lines = join(getline(0, '$'), "\n")
       let suffix = ['--highlight-lines', line1.'-'.line2]
     en
-    let [cmd, path] = s:cmd('silicon', a:000, g:silicon, s:silicon)
-    if s:debug()
-      call s:print_debug(string(cmd + suffix))
-      call s:print_debug(string(lines))
-      let @y = string(cmd + suffix)
-    en
+    return [lines, suffix]
+endfun
+
+" =============================== External API ===============================
+
+" Info: Generates an image of code which represents lines a:line1 to a:line2
+" of the current buffer. If <bang> is supplied, then the generated image will
+" instead represent the current buffer with a:line1 to a:line2 highlighted.
+fun! silicon#generate(bang, line1, line2, ...)
+  try
+    let [lines, suffix] = s:read_command_attributes(a:bang, a:line1, a:line2)
+    let [cmd, silicon] = s:build_cmd('silicon', a:000, g:silicon, s:silicon)
     call s:run(cmd + suffix, lines)
-    echom '[Silicon - Success]: Image Generated to '.path
+    if silicon['to-clipboard']
+      call s:print_success('Generated image copied to clipboard')
+    el
+      call s:print_success('Generated image written to '.silicon['output'])
+    en
+    if s:debug_mode_enabled()
+      let @+ = join(cmd + suffix)
+      call s:print_debug('Command executed: '.string(cmd + suffix))
+      call s:print_debug('With piped input: '.string(lines))
+      call s:print_debug('Copied command to clipboard: '.@+)
+    en
   catch
     call s:print_error(v:exception)
   endtry
@@ -448,7 +463,7 @@ fun! silicon#complete(arglead, cmdline, cursorpos)
     en
   elseif a:arglead == entered_path
     " Complete path
-    return s:silicon.output[s:compfun]('output', entered_path)
+    return s:silicon['output'][s:compfun]('output', entered_path)
   el
     " Complete remaining flags
     let completions = values(map(remaining_flags, "'--'.v:key"))
