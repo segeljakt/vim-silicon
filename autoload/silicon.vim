@@ -37,21 +37,6 @@ endfun
 
 " ------------------------- Vim/Neovim Compatibility -------------------------
 
-" Info: Starts a:cmd as a job and passes a:data as input to it
-if has('nvim')
-  fun! s:run(cmd, data)
-    let id = jobstart(a:cmd, s:job_options)
-    call chansend(id, a:data)
-    call chanclose(id)
-  endfun
-el
-  fun! s:run(cmd, data)
-    let id = job_start(a:cmd, s:job_options)
-    call ch_sendraw(id, a:data)
-    call ch_close(id)
-  endfun
-en
-
 " Info: Callback for job
 fun! s:handler(channel_id, data, name)
   if s:debug_mode_enabled()
@@ -67,10 +52,25 @@ fun! s:handler(channel_id, data, name)
   en
 endfun
 
-let s:job_options = {
-      \   'on_stderr': function('s:handler'),
-      \   'stderr_buffered': 1,
-      \ }
+" Info: Starts a:cmd as a job and passes a:data as input to it
+if has('nvim')
+  let s:job_options = {
+        \   'on_stderr': function('s:handler'),
+        \   'stderr_buffered': 1,
+        \ }
+  fun! s:run(cmd, data)
+    let id = jobstart(a:cmd, s:job_options)
+    call chansend(id, a:data)
+    call chanclose(id)
+  endfun
+el
+  let s:job_options = { }
+  fun! s:run(cmd, data)
+    let id = job_start(a:cmd, s:job_options)
+    call ch_sendraw(id, a:data)
+    call ch_close(id)
+  endfun
+en
 
 " ------------------------------ Error handling ------------------------------
 
