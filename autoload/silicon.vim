@@ -9,7 +9,7 @@ if exists('s:autoloaded') | finish | el | let s:autoloaded = v:true | en
 " ====================== Plugin-Independent Functions ========================
 
 " Info: Mapping from type-number to type-name
-const s:typename = [
+let s:typename = [
       \ 'number',
       \ 'string',
       \ 'func',
@@ -67,7 +67,7 @@ fun! s:handler(channel_id, data, name)
   en
 endfun
 
-const s:job_options = {
+let s:job_options = {
       \   'on_stderr': function('s:handler'),
       \   'stderr_buffered': 1,
       \ }
@@ -223,7 +223,7 @@ fun! s:infer_language()
   en
 endfun
 
-const s:os = has('win64') || has('win32') || has('win16') ? 'Windows' :
+let s:os = has('win64') || has('win32') || has('win16') ? 'Windows' :
       \ has('mac') || has('macunix') || has('gui_mac') ? 'Darwin' :
       \ substitute(system('uname'), '\n', '', '')
 
@@ -291,22 +291,22 @@ fun! s:complete_defaults(key, val)
   return filter(completions, 'v:val =~? "^".a:val')
 endfun
 
-const s:themes       = function('s:complete_themes')
-const s:fonts        = function(executable('fc-list') ?
+let s:themes       = function('s:complete_themes')
+let s:fonts        = function(executable('fc-list') ?
       \ 's:complete_fonts':'s:complete_defaults')
-const s:bools        = function('s:complete_bools')
-const s:filetypes    = function('s:complete_filetypes')
-const s:defaults     = function('s:complete_defaults')
-const s:paths        = function('s:complete_paths')
+let s:bools        = function('s:complete_bools')
+let s:filetypes    = function('s:complete_filetypes')
+let s:defaults     = function('s:complete_defaults')
+let s:paths        = function('s:complete_paths')
 
-const s:to_clipboard = function('s:infer_to_clipboard')
-const s:language     = function('s:infer_language')
-const s:output       = function('s:infer_output')
+let s:to_clipboard = function('s:infer_to_clipboard')
+let s:language     = function('s:infer_language')
+let s:output       = function('s:infer_output')
 
 " ---------------------- Internal config specification -----------------------
 
-const [s:type, s:default, s:compfun] = range(0, 2) " Column labels
-const s:silicon = {
+let [s:type, s:default, s:compfun] = range(0, 2) " Column labels
+let s:silicon = {
       \   'theme':              [ v:t_string,      'Dracula',    s:themes ],
       \   'font':               [ v:t_string,         'Hack',     s:fonts ],
       \   'background':         [ v:t_string,      '#AAAAFF',  s:defaults ],
