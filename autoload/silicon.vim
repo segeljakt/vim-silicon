@@ -229,7 +229,7 @@ let s:os = has('win64') || has('win32') || has('win16') ? 'Windows' :
 
 " Info: Infer the --to-clipboard flag
 fun! s:infer_to_clipboard()
-  return !empty(executable('xclip')) || s:os ==# 'Darwin'
+  return !empty(executable('xclip')) || s:os ==# 'Darwin' || s:os ==# 'Windows'
 endfun
 
 " ----------------------------- Command builder ------------------------------
