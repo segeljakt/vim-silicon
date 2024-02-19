@@ -311,6 +311,7 @@ let s:silicon = {
       \   'font':               [ v:t_string,         'Hack',     s:fonts ],
       \   'background':         [ v:t_string,      '#AAAAFF',  s:defaults ],
       \   'shadow-color':       [ v:t_string,      '#555555',  s:defaults ],
+      \   'line-offset':        [ v:t_number,              1,  s:defaults ],
       \   'line-pad':           [ v:t_number,              2,  s:defaults ],
       \   'pad-horiz':          [ v:t_number,             80,  s:defaults ],
       \   'pad-vert':           [ v:t_number,            100,  s:defaults ],
